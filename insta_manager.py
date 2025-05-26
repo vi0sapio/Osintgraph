@@ -51,9 +51,9 @@ class InstagramManager:
         self.neo4j_manager.execute_write(self.neo4j_manager.create_user, user)
         self.logger.debug(f"Successfully created user {target_user}")
 
-        if profile.is_private:
-            self.logger.error(f"Cannot fetch data. {target_user}'s profile is private.")
-            return 
+        if profile.is_private and not profile.followed_by_viewer:
+            self.logger.error(f"Cannot fetch data. {target_user}'s profile is private. Follow the user to access their profile.")
+            return
         
         result = {"followers":[], 
                   "followers_batch_mode": False,
