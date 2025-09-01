@@ -8,24 +8,26 @@ class CustomFormatter(logging.Formatter):
     """Custom log formatter with color coding for different log levels"""
     
     # ANSI escape codes for colors
-    magenta = "\x1b[35;1m"
-    green = "\x1b[32;1m"
-    yellow = "\x1b[33;1m"
-    red = "\x1b[31;1m"
+    grey = "\033[38;5;247m"
+    reddish = "\033[38;5;224m"
+    magenta = "\033[38;5;127m"
+    green = "\033[38;5;210m"
+    yellow = "\033[38;5;227m"
+    red = "\033[38;5;196m"
     reset = "\x1b[0m"
 
     # Default log format
     time = "%(asctime)s "
-    format = "[%(levelname)s]"
+    format = "[ %(levelname)-8s]"
     message = " - %(message)s "
 
     # Dictionary for formatting based on log level
     FORMATS = {
-        logging.DEBUG: time + magenta + format + reset + message,
-        logging.INFO: time + green + format + reset + message,
-        logging.WARNING: time + yellow + format + reset + message,
-        logging.ERROR: time + red + format + reset + message,
-        logging.CRITICAL: time + red + format + reset + red + message + reset
+    logging.DEBUG: grey + time + reset + magenta + format + reset + message,
+    logging.INFO: grey + time + reset + green + format + reset + message,
+    logging.WARNING: grey + time + reset + yellow + format + reset + message,
+    logging.ERROR: grey + time + reset + red + format + reset + message,
+    logging.CRITICAL: grey + time + reset + red + format + reset + red + message + reset
     }
 
     def format(self, record):
@@ -60,6 +62,12 @@ def setup_root_logger(debug_mode=False):
 
         # Add the handler to the root logger
         logger.addHandler(handler)
+    else:
+        # If handlers already exist, only update the level
+        if debug_mode:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
 
 # Function to disable loggers from third-party libraries like neo4j and instaloader
 def disable_library_loggers():
@@ -83,7 +91,14 @@ def disable_library_loggers():
         "urllib3.poolmanager",
         "charset_normalizer",
         "socks",
-        "requests"
+        "requests",
+        "httpx",
+        "openrouter",
+        "openrouter.client",
+        "langchain",
+        "langchain_google_genai",
+        "langgraph",
+        "markdown_it"
     ]
     
     # Disable each logger in the list

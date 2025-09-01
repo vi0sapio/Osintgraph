@@ -175,3 +175,5 @@ cython_debug/
 
 # credentials json
 credentials.json
+
+templates_sync.json

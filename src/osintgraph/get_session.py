@@ -29,7 +29,7 @@ def get_cookiefile():
 
 
 def import_session(cookiefile, sessionfile):
-    print("Using cookies from {}.".format(cookiefile))
+    # print("Using cookies from {}.".format(cookiefile))
     conn = connect(f"file:{cookiefile}?immutable=1", uri=True)
     try:
         cookie_data = conn.execute(
@@ -40,11 +40,12 @@ def import_session(cookiefile, sessionfile):
             "SELECT name, value FROM moz_cookies WHERE host LIKE '%instagram.com'"
         )
     instaloader = Instaloader(max_connection_attempts=1)
+    instaloader.context.log = lambda *args, **kwargs: None
     instaloader.context._session.cookies.update(cookie_data)
     username = instaloader.test_login()
     if not username:
         raise NoLoginInError("Not logged in. Are you logged in successfully in Firefox?")
-    print("Imported session cookie for {}.".format(username))
+    # print("Imported session cookie for {}.".format(username))
     instaloader.context.username = username
     instaloader.save_session_to_file(sessionfile)
 
