@@ -89,6 +89,7 @@ Run these commands in your terminal:
 ```bash
 git clone https://github.com/XD-MHLOO/Osintgraph.git
 cd Osintgraph
+git checkout v0.0.1-legacy
 pip install -r requirements.txt
 ```
 ## 3. Connect Neo4j and log into your Instagram account🔑:
