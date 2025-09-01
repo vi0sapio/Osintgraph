@@ -1,6 +1,6 @@
 # Osintgraph (Open Source Intelligence Graph)
 
-![osintgraph_banner](https://github.com/user-attachments/assets/7b353b12-b47a-4f9c-9d0f-588dddb9056f)
+![osintgraph_banner](https://github.com/user-attachments/assets/04a46de3-8f0e-40fa-83f6-2a9ff811a667)
 
 **Osintgraph** is a tool for deep social analysis and OSINT investigations focused on Instagram targets.
 It uses Neo4j to map a target’s network — revealing connections, interests, and affiliations — and an interactive AI Agent to speed up investigations and simplify analysis.
@@ -11,7 +11,7 @@ It uses Neo4j to map a target’s network — revealing connections, interests, 
 [See how it works ↗](#-how-osintgraph-works)
 
 ### Data collection via CLI:
-| ![osintgrah_cli](https://github.com/user-attachments/assets/81f073cc-85a1-46ed-a872-7845f422aef0) |
+| ![osintgrah_cli](https://github.com/user-attachments/assets/131fca5d-a0ac-4193-bf7c-af52bafc75b1) |
 |-----------------|
 | *Overview of CLI Interface for data collection* |
 
@@ -27,10 +27,12 @@ The AI Agent supports data retrieval, keyword and semantic searches, relationshi
 ### 2. **Neo4j Visualization**
 Visualize your target’s social network, trace interactions, and query relationships directly.  
 
-[![video](https://github.com/user-attachments/assets/959a29e5-b61d-41e6-ae49-52d6d78cab07)](https://github.com/user-attachments/assets/959a29e5-b61d-41e6-ae49-52d6d78cab07)
+[![video](https://github.com/user-attachments/assets/71a6c81c-655e-4831-83e8-585e9d270b5a)](https://github.com/user-attachments/assets/71a6c81c-655e-4831-83e8-585e9d270b5a)
 
 | *Example of tracing a target user’s close connection through their most commented post, then investigating mutual followers and all interactions between them.* |
 |-----------------|
+
+
 
 
 ## 📚 Table of Contents
@@ -53,7 +55,7 @@ Visualize your target’s social network, trace interactions, and query relation
   * [`explore`](#-explore-username)  
   * [`agent`](#-agent)  
 * [🧩 Data Model (Neo4j Schema)](#-data-model-neo4j-schema)  
-  * [👤 Person Node](#-person---represents-an-instagram-account-target-follower-or-followee)
+  * [👤 Person Node](#-person---represents-an-instagram-account)
   * [📷 Post Node](#-post---represents-an-instagram-post)
   * [💬 Comment Node](#-comment---represents-a-comment-on-a-post) 
   * [🕸️ Relationships](#-relationships)
@@ -422,7 +424,7 @@ osintgraph agent --debug
 
 ## 🧩 Data Model (Neo4j Schema)
 After scraping, OSINTGraph stores Instagram data in Neo4j as interconnected nodes and relationships.
-<img width="710" height="447.8" alt="OsintgraphNeo4j" src="https://github.com/user-attachments/assets/5380cf4a-3f6c-450d-b956-b89d5f254e6f" />
+<img width="710" height="447.8" alt="OsintgraphNeo4j" src="https://github.com/user-attachments/assets/dc34d94b-fa2b-43c4-8435-a898c8a4dcb1" />
 
 *OSINTGraph Data Model (All Entities & Relationships)*
 
