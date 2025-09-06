@@ -365,7 +365,7 @@ def run_template_chunked(input_str: str):
         buffer_storage["processed_count"] += 1
         
         field_desc = field_obj.get("description")
-        ui.status_text.set(f"[grey70]Processing field ({buffer_storage["processed_count"]}/{buffer_storage["total_fields"]}): {field_name}...[/grey70]")
+        ui.status_text.set(f"[grey70]Processing field ({buffer_storage['processed_count']}/{buffer_storage['total_fields']}): {field_name}...[/grey70]")
         ui.refresh()
 
         return (
