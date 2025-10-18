@@ -357,13 +357,8 @@ class InstagramManager:
                     
                     person_data = extract_user_metadata(person)
                     result[data_type]["data"].append(person_data)
-                    self.request_made += 1
+                    self._request_made_and_wait()
                     counter +=1
-
-                    if self.request_made % self.config.max_request == 0:
-                        time.sleep(random.uniform(8, 10))
-                    
-                    
 
                 if result[data_type]["data"]:
                     self.neo4j_manager.execute_write(self.neo4j_manager.create_users, result[data_type]["data"])
@@ -439,13 +434,8 @@ class InstagramManager:
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{"posts_analysis": False})
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{"account_analysis": False})
 
-                    self.logger.debug(f"Successfully added {data_type}.")
-
-                    self.request_made += 1
+                    self._request_made_and_wait(is_post=True)
                     counter +=1
-                    if self.request_made % self.config.max_request == 0:
-                        time.sleep(random.uniform(10, 15))
-                    
 
                     
                 if resume_hash_created:
@@ -561,6 +551,21 @@ class InstagramManager:
         return iterator, is_resume
 
 
+    def _request_made_and_wait(self, is_post: bool = False):
+        """
+        Increments request counter and enforces rate limits with jitter.
+        """
+        self.request_made += 1
+
+        # Short, random pause between each request to mimic human behavior
+        time.sleep(random.uniform(0.5, 2.5))
+
+        # Longer pause after a configurable number of requests
+        if self.request_made % self.config.max_request == 0:
+            sleep_duration = random.uniform(5 * 60, 10 * 60)  # 5 to 10 minutes
+            self.logger.info(f"Rate limit hit. Pausing for {int(sleep_duration / 60)} minutes...")
+            time.sleep(sleep_duration)
+
     ### Temporary Configuration 
 
     ## Temporary config 
@@ -593,7 +598,3 @@ class InstagramManager:
             # After sleep, reload the session to continue
             self.L.load_session_from_file(self.username)
             self.logger.info("Session reloaded after 10 minutes sleep.")
-
-
-
-

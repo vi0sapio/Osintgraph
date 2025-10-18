@@ -1,31 +1,31 @@
 import json
 
 def generate_image_summary(image_analysis_str: str) -> str:
-    def generate_image_summary(analysis: dict) -> str:
+    def _generate_single_image_summary(analysis: dict) -> str:
+        summary_map = {
+            "image_type": "The image is a {}.",
+            "image_tone": "It has a {} tone.",
+            "image_scenario": "The scenario depicted is {}.",
+            "image_intent": "The intent appears to be {}.",
+            "people_count_visible": "People visible: {}.",
+            "people_gender": "Apparent gender {}.",
+            "notable_objects": "Notable objects: {}.",
+            "animals_seen": "Animals present: {}.",
+            "text_transcribed": "Text on image: '{}'.",
+            "text_meaning": "It means: {}.",
+            "key_takeaways": "Key insight: {}.",
+        }
+
         phrases = []
-        if analysis.get("image_type"):
-            phrases.append(f"The image is a {analysis['image_type']}.")
-        if analysis.get("image_tone"):
-            phrases.append(f"It has a {analysis['image_tone']} tone.")
-        if analysis.get("image_scenario"):
-            phrases.append(f"The scenario depicted is {analysis['image_scenario']}.")
-        if analysis.get("image_intent"):
-            phrases.append(f"The intent appears to be {analysis['image_intent']}.")
-        if analysis.get("people_count_visible"):
-            phrases.append(f"People visible: {analysis['people_count_visible']}.")
-        if analysis.get("people_gender"):
-            phrases.append(f"Apparent gender {analysis['people_gender']}.")
-        if analysis.get("notable_objects"):
-            phrases.append(f"Notable objects: {analysis['notable_objects']}.")
-        if analysis.get("animals_seen"):
-            phrases.append(f"Animals present: {analysis['animals_seen']}.")
-        if analysis.get("text_present"):
-            if analysis.get("text_transcribed"):
-                phrases.append(f"Text on image: '{analysis['text_transcribed']}'.")
-            if analysis.get("text_meaning"):
-                phrases.append(f"It means: {analysis['text_meaning']}.")
-        if analysis.get("key_takeaways"):
-            phrases.append(f"Key insight: {analysis['key_takeaways']}.")
+        for key, template in summary_map.items():
+            if value := analysis.get(key):
+                phrases.append(template.format(value))
+
+        # Special handling for text_present which is a boolean flag
+        if not analysis.get("text_present") and analysis.get("text_transcribed"):
+             # This case is already handled by text_transcribed, but shows how to handle complex logic
+             pass
+
         return " ".join(phrases)
 
     try:
@@ -33,7 +33,7 @@ def generate_image_summary(image_analysis_str: str) -> str:
         if not isinstance(image_analyses, list):
             return "Invalid input: expected a JSON list of image analysis objects."
         summaries = [
-            f"Image {idx+1}: {generate_image_summary(img)}"
+            f"Image {idx+1}: {_generate_single_image_summary(img)}"
             for idx, img in enumerate(image_analyses)
         ]
         return "\n".join(summaries)

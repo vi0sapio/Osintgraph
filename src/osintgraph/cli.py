@@ -90,7 +90,7 @@ def main():
                     Maximum number of items to fetch per account. (default: follower=1000, followee=1000, post=10)
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}
                 {HEADER_COLOR}--rate-limit NUMBER{RESET}         
-                    Pause for 8–10 minutes after every N requests (default: 200)
+                    Pause for 5–10 minutes after every N requests (default: 200)
                 {HEADER_COLOR}--force [parts]{RESET}        
                     Re-fetch or re-analyze the chosen sections even if already completed before.  
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}all{RESET}, {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}, {HEADER_COLOR}post-analysis{RESET}, {HEADER_COLOR}account-analysis{RESET}
@@ -113,7 +113,7 @@ def main():
                     Maximum number of items to fetch per account. (default: follower=1000, followee=1000, post=10)
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}
                 {HEADER_COLOR}--rate-limit NUMBER{RESET}         
-                    Pause for 8–10 minutes after every N requests (default: 200)
+                    Pause for 5–10 minutes after every N requests (default: 200)
                 {HEADER_COLOR}--force [parts]{RESET}        
                     Re-fetch or re-analyze the chosen sections even if already completed before.  
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}all{RESET}, {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}, {HEADER_COLOR}post-analysis{RESET}, {HEADER_COLOR}account-analysis{RESET}
@@ -157,7 +157,7 @@ def main():
     discover_parser.add_argument("username", type=str, help="Target username to scrape.")
     discover_parser.add_argument("--skip", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Skip specific scraping/analysis steps.")
     discover_parser.add_argument("--limit", nargs="+", metavar="TYPE=VALUE", help="Set scrape limits. Types: follower, followee, post. Example: --limit follower=2000 post=50")
-    discover_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 8–10 min after every N requests to reduce Instagram detection (default: 200).")
+    discover_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     discover_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
 
     # Explore command
@@ -166,7 +166,7 @@ def main():
     explore_parser.add_argument("--max", type=int, default=5, help="Maximum followees to discover (default: 5)")
     explore_parser.add_argument("--skip", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Skip specific scraping/analysis steps.")
     explore_parser.add_argument("--limit", nargs="+", metavar="TYPE=VALUE", help="Set scrape limits. Types: follower, followee, post. Example: --limit follower=2000 post=50")
-    explore_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 8–10 min after every N requests to reduce Instagram detection (default: 200).")
+    explore_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     explore_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
 
     # Agent command
@@ -354,4 +354,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
