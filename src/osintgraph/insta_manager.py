@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from fake_useragent import UserAgent
 import random
 import time
 from dataclasses import dataclass, field
@@ -152,6 +153,10 @@ class InstagramManager:
             else:
                 self.logger.info(f"⤷  Skipped {data_type.capitalize()}")
 
+            # Add a human-like pause between scraping different data types
+            if data_type != data_types[-1]: # Don't sleep after the last item
+                time.sleep(random.uniform(5, 15))
+
         
 
         # if self.config.debug_mode:
@@ -214,8 +219,18 @@ class InstagramManager:
     ## Account Login (This will first try to login via session file, if not found then relogin is needed )
     def _login(self):
         self.user_agent = self.credential_manager.get("INSTAGRAM_USER_AGENT")
+
         if self.user_agent:
             self.L.context.user_agent = self.user_agent
+        else:
+            try:
+                ua = UserAgent()
+                self.user_agent = ua.random
+                self.L.context.user_agent = self.user_agent
+                self.logger.info(f"✓  No User-Agent set, using a random one: {self.user_agent}")
+                self.credential_manager.set("INSTAGRAM_USER_AGENT", self.user_agent)
+            except Exception as e:
+                self.logger.warning(f"Could not generate a random User-Agent: {e}. Using Instaloader's default.")
         # Try to fetch the username from the environment
         self.username = self.credential_manager.get("INSTAGRAM_USERNAME")
 

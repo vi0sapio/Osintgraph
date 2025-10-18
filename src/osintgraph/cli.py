@@ -233,16 +233,16 @@ def main():
             if setup_target in ["all", "user-agent"]:
                         # --- Instagram User-Agent ---
                 if ua := credential_manager.get("INSTAGRAM_USER_AGENT"):
-                    logger.info(f"✓  User-Agent configured: ({ua})")
+                    logger.info(f"✓  User-Agent configured.")
                 else:
                     logger.warning("⚠  No User-Agent found.")
-                    logger.info("Enter User-Agent (or press Enter to skip): ")
+                    logger.info("Enter User-Agent (or press Enter to auto-generate one): ")
                     ua = input("                       > ").strip()
                     if ua:
                         credential_manager.set("INSTAGRAM_USER_AGENT", ua)
                         logger.info("✓  User-Agent set.")
                     else:
-                        logger.warning("⚠  Skipped. Will use default User-Agent. May increase risk of detection.")
+                        logger.info("✓  Skipped. A random User-Agent will be generated at runtime.")
 
             logger.info("🔧︎  Setup Completed")
         except KeyboardInterrupt:
