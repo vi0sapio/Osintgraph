@@ -653,9 +653,12 @@ class InstagramManager:
 
         # Longer pause after a configurable number of requests
         if self.request_made % self.config.max_request == 0:
-            sleep_duration = random.uniform(5 * 60, 10 * 60)  # 5 to 10 minutes
-            self.logger.info(f"Rate limit hit. Pausing for {int(sleep_duration / 60)} minutes...")
-            time.sleep(sleep_duration)
+            self.logger.info("Proactive rate limit hit. Attempting to switch accounts...")
+            if not self._switch_account():
+                # If switching fails (e.g., all accounts are used), then pause.
+                sleep_duration = random.uniform(5 * 60, 10 * 60)  # 5 to 10 minutes
+                self.logger.info(f"All accounts tried. Pausing for {int(sleep_duration / 60)} minutes...")
+                time.sleep(sleep_duration)
 
     ### Temporary Configuration 
 
