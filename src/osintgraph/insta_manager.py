@@ -23,7 +23,7 @@ from .utils.data_extractors import (
     extract_profile_data,
     extract_user_metadata,
 )
-from ..constants import (
+from .constants import (
     SESSIONS_DIR
 )
 
@@ -279,7 +279,7 @@ class InstagramManager:
                 return
 
         try:
-            self.L.load_session_from_file(self.username, session_filename=os.path.join(SESSIONS_DIR, self.username))
+            self.L.load_session_from_file(self.username, filename=os.path.join(SESSIONS_DIR, self.username))
             self.logger.info(f"✓  Logged in as {self.username}.")
         except FileNotFoundError:
             self.logger.warning(f"✗ USER: {self.username} Session file not found")
@@ -340,9 +340,8 @@ class InstagramManager:
                 if not new_username:
                     self.logger.error("Username cannot be empty.")
                     return self.choose_login_method()
-                self.username = new_username
                 import_session(get_cookiefile(), os.path.join(SESSIONS_DIR, self.username))
-                self.L.load_session_from_file(self.username, session_filename=os.path.join(SESSIONS_DIR, self.username))
+                self.L.load_session_from_file(self.username, filename=os.path.join(SESSIONS_DIR, self.username))
                 self.logger.info(f"✓  Logged in as {self.username}.")
             else:
                 self.logger.info("Manual Login")
