@@ -1,5 +1,6 @@
 # from argparse import ArgumentParser
 from glob import glob
+import os
 from os.path import expanduser
 from platform import system
 from sqlite3 import OperationalError, connect
@@ -32,8 +33,8 @@ def get_cookiefile():
 def import_session(cookiefile, sessionfile):
     # print("Using cookies from {}.".format(cookiefile))
     logger = logging.getLogger(__name__)
-    # The sessionfile is the username
-    username_to_import = sessionfile
+    # The sessionfile is the full path, extract the username
+    username_to_import = os.path.basename(sessionfile)
 
     conn = connect(f"file:{cookiefile}?immutable=1", uri=True)
     try:

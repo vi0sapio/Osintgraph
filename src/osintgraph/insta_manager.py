@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import logging
 from fake_useragent import UserAgent
 import random
@@ -21,6 +22,9 @@ from .utils.data_extractors import (
     extract_post_data,
     extract_profile_data,
     extract_user_metadata,
+)
+from ..constants import (
+    SESSIONS_DIR
 )
 
 
@@ -49,7 +53,11 @@ class InstagramManager:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG if self.config.debug_mode else logging.INFO)
-        self.L = instaloader.Instaloader(compress_json=False)
+        self.L = instaloader.Instaloader(
+            compress_json=False,
+            dirname_pattern=os.path.join(SESSIONS_DIR, "{target}"),
+            filename_pattern="{profile}_{mediaid}"
+        )
         self.L.context.error = lambda *args, **kwargs: None
 
         self.request_made = 0
@@ -271,7 +279,7 @@ class InstagramManager:
                 return
 
         try:
-            self.L.load_session_from_file(self.username)  # Try loading the session file
+            self.L.load_session_from_file(self.username, session_filename=os.path.join(SESSIONS_DIR, self.username))
             self.logger.info(f"✓  Logged in as {self.username}.")
         except FileNotFoundError:
             self.logger.warning(f"✗ USER: {self.username} Session file not found")
@@ -333,15 +341,15 @@ class InstagramManager:
                     self.logger.error("Username cannot be empty.")
                     return self.choose_login_method()
                 self.username = new_username
-                import_session(get_cookiefile(), self.username)
-                self.L.load_session_from_file(self.username)  # Try loading the session file
+                import_session(get_cookiefile(), os.path.join(SESSIONS_DIR, self.username))
+                self.L.load_session_from_file(self.username, session_filename=os.path.join(SESSIONS_DIR, self.username))
                 self.logger.info(f"✓  Logged in as {self.username}.")
             else:
                 self.logger.info("Manual Login")
                 self.logger.info("Enter your Instagram username:")
                 self.username = input("                       > ")
                 self.L.interactive_login(self.username)  # Log in interactively
-                self.L.save_session_to_file()  # Save session to file for later use
+                self.L.save_session_to_file(os.path.join(SESSIONS_DIR, self.username))
                 self.logger.info(f"✓  Logged in as {self.username}.")
 
             accounts = self.credential_manager.get("INSTAGRAM_ACCOUNTS", [])

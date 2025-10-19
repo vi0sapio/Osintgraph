@@ -31,6 +31,13 @@ TEMPLATES_DIR = os.path.join(
 
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
 
+SESSIONS_DIR = os.path.join(
+    user_config_dir(appname="osintgraph", appauthor=False, ensure_exists=True),
+    "sessions"
+)
+
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+
 DEBUG_LOGS_DIR = os.path.join(
     user_config_dir(appname="osintgraph", appauthor=False, ensure_exists=True),
     "debug_logs"
