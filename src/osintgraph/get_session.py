@@ -3,6 +3,7 @@ from glob import glob
 from os.path import expanduser
 from platform import system
 from sqlite3 import OperationalError, connect
+import logging
 
 try:
     from instaloader import ConnectionException, Instaloader
@@ -30,18 +31,38 @@ def get_cookiefile():
 
 def import_session(cookiefile, sessionfile):
     # print("Using cookies from {}.".format(cookiefile))
+    logger = logging.getLogger(__name__)
+    # The sessionfile is the username
+    username_to_import = sessionfile
+
     conn = connect(f"file:{cookiefile}?immutable=1", uri=True)
     try:
         cookie_data = conn.execute(
             "SELECT name, value FROM moz_cookies WHERE baseDomain='instagram.com'"
-        )
+        ).fetchall()
     except OperationalError:
         cookie_data = conn.execute(
             "SELECT name, value FROM moz_cookies WHERE host LIKE '%instagram.com'"
-        )
+        ).fetchall()
+    
+    # Create a temporary Instaloader instance to get the user ID
+    temp_loader = Instaloader(max_connection_attempts=1)
+    temp_loader.context.log = lambda *args, **kwargs: None
+    try:
+        profile = temp_loader.check_profile_id(username_to_import)
+        user_id = str(profile.userid)
+    except Exception as e:
+        logger.error(f"Could not retrieve profile for {username_to_import}. Make sure the username is correct. Error: {e}")
+        raise NoLoginInError(f"Failed to find profile for {username_to_import}.")
+
+    # Filter cookies to only include those for the target user ID
+    user_cookies = {name: value for host, name, value in cookie_data if name == 'ds_user_id' and value == user_id}
+    if 'ds_user_id' in user_cookies:
+        user_cookies.update({name: value for host, name, value in cookie_data if name in ['sessionid', 'csrftoken']})
+
     instaloader = Instaloader(max_connection_attempts=1)
     instaloader.context.log = lambda *args, **kwargs: None
-    instaloader.context._session.cookies.update(cookie_data)
+    instaloader.context._session.cookies.update(user_cookies)
     username = instaloader.test_login()
     if not username:
         raise NoLoginInError("Not logged in. Are you logged in successfully in Firefox?")
