@@ -67,20 +67,19 @@ def import_session(cookiefile, sessionfile):
             user_cookies[name] = value
             break
 
-    # If found, get the sessionid and csrftoken for that same host
+    # If user_host is found, try to get the sessionid and csrftoken for that same host
     if user_host:
         for host, name, value in cookie_data:
             if host == user_host and name in ['sessionid', 'csrftoken']:
                 user_cookies[name] = value
-
-        
+    
     # Fallback: If sessionid or csrftoken were not found with the specific host,
-    # try a more lenient match. This helps if cookies are on different subdomains.
-    if 'sessionid' not in user_cookies or 'csrftoken' not in user_cookies:
-        # This will overwrite with the last found, which is often the most recent
-        for host, name, value in cookie_data:
-            if name in ['sessionid', 'csrftoken']:
-                user_cookies[name] = value
+    # or if no user_host was found at all, try a more lenient match but only
+    # if we have the user_id. This helps if cookies are on different subdomains.
+    if 'ds_user_id' in user_cookies and ('sessionid' not in user_cookies or 'csrftoken' not in user_cookies):
+        # This will overwrite with the last found, which is often the most recent session.
+        lenient_cookies = {name: value for host, name, value in cookie_data if name in ['sessionid', 'csrftoken']}
+        user_cookies.update(lenient_cookies)
 
     instaloader = Instaloader(max_connection_attempts=1)
     instaloader.context.log = lambda *args, **kwargs: None

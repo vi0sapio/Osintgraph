@@ -340,8 +340,9 @@ class InstagramManager:
                 if not new_username:
                     self.logger.error("Username cannot be empty.")
                     return self.choose_login_method()
-                import_session(get_cookiefile(), os.path.join(SESSIONS_DIR, self.username))
-                self.L.load_session_from_file(self.username, filename=os.path.join(SESSIONS_DIR, self.username))
+                self.username = new_username
+                import_session(get_cookiefile(), os.path.join(SESSIONS_DIR, new_username))
+                self.L.load_session_from_file(new_username, filename=os.path.join(SESSIONS_DIR, new_username))
                 self.logger.info(f"✓  Logged in as {self.username}.")
             else:
                 self.logger.info("Manual Login")
