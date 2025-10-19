@@ -57,9 +57,30 @@ def import_session(cookiefile, sessionfile):
         raise NoLoginInError(f"Failed to find profile for {username_to_import}.")
 
     # Filter cookies to only include those for the target user ID
-    user_cookies = {name: value for host, name, value in cookie_data if name == 'ds_user_id' and value == user_id}
-    if 'ds_user_id' in user_cookies:
-        user_cookies.update({name: value for host, name, value in cookie_data if name in ['sessionid', 'csrftoken']})
+    user_cookies = {}
+    user_host = None
+
+    # Find the host associated with the target user's ds_user_id
+    for host, name, value in cookie_data:
+        if name == 'ds_user_id' and value == user_id:
+            user_host = host
+            user_cookies[name] = value
+            break
+
+    # If found, get the sessionid and csrftoken for that same host
+    if user_host:
+        for host, name, value in cookie_data:
+            if host == user_host and name in ['sessionid', 'csrftoken']:
+                user_cookies[name] = value
+
+        
+    # Fallback: If sessionid or csrftoken were not found with the specific host,
+    # try a more lenient match. This helps if cookies are on different subdomains.
+    if 'sessionid' not in user_cookies or 'csrftoken' not in user_cookies:
+        # This will overwrite with the last found, which is often the most recent
+        for host, name, value in cookie_data:
+            if name in ['sessionid', 'csrftoken']:
+                user_cookies[name] = value
 
     instaloader = Instaloader(max_connection_attempts=1)
     instaloader.context.log = lambda *args, **kwargs: None
@@ -70,14 +91,3 @@ def import_session(cookiefile, sessionfile):
     # print("Imported session cookie for {}.".format(username))
     instaloader.context.username = username
     instaloader.save_session_to_file(sessionfile)
-
-
-# if __name__ == "__main__":
-#     p = ArgumentParser()
-#     p.add_argument("-c", "--cookiefile")
-#     p.add_argument("-f", "--sessionfile")
-#     args = p.parse_args()
-#     try:
-#         import_session(args.cookiefile or get_cookiefile(), args.sessionfile)
-#     except (ConnectionException, OperationalError) as e:
-#         raise SystemExit("Cookie import failed: {}".format(e))
