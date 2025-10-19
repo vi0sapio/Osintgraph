@@ -38,11 +38,11 @@ def import_session(cookiefile, sessionfile):
     conn = connect(f"file:{cookiefile}?immutable=1", uri=True)
     try:
         cookie_data = conn.execute(
-            "SELECT name, value FROM moz_cookies WHERE baseDomain='instagram.com'"
+            "SELECT host, name, value FROM moz_cookies WHERE baseDomain='instagram.com'"
         ).fetchall()
     except OperationalError:
         cookie_data = conn.execute(
-            "SELECT name, value FROM moz_cookies WHERE host LIKE '%instagram.com'"
+            "SELECT host, name, value FROM moz_cookies WHERE host LIKE '%instagram.com'"
         ).fetchall()
     
     # Create a temporary Instaloader instance to get the user ID

@@ -2,6 +2,9 @@ from .iso_parser import safe_iso
 import re
 import json
 
+def safe_int(value):
+    """Safely convert a value to an integer, returning None if conversion fails."""
+    return int(value) if value is not None else None
 ## Extract target user data
 def extract_profile_data(profile):
     """
@@ -10,7 +13,7 @@ def extract_profile_data(profile):
     """
     return {
         'username': getattr(profile, 'username', None),
-        'id': int(getattr(profile, 'userid', None)),
+        'id': safe_int(getattr(profile, 'userid', None)),
         'fullname': getattr(profile, 'full_name', None),
         'bio': getattr(profile, 'biography', None),
         'biography_mentions': getattr(profile, 'biography_mentions', None),
@@ -42,7 +45,7 @@ def extract_user_metadata(person):
     Maps the follower object to a dictionary containing relevant data.
     """
     return {
-        'id': int(person._node.get('id', None)),
+        'id': safe_int(person._node.get('id', None)),
         'username': person._node.get('username', None),
         'fullname': person._node.get('full_name', None),
         'profile_pic_url': person._node.get('profile_pic_url', None),
@@ -54,8 +57,8 @@ def extract_user_metadata(person):
 def extract_comment_data(comment):
     return {
         'created_at_utc': safe_iso(getattr(comment, 'created_at_utc', None)),
-        'id': int(getattr(comment, 'id', None)),
-        'owner_id': int(comment.owner._node['id']),
+        'id': safe_int(getattr(comment, 'id', None)),
+        'owner_id': safe_int(comment.owner._node.get('id')),
         'likes_count': getattr(comment, 'likes_count', None),
         'text': getattr(comment, 'text', None)
 

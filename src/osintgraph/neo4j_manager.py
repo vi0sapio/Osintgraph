@@ -325,7 +325,7 @@ class Neo4jManager:
             p.account_analysis = COALESCE($account_analysis, "")
 
 
-         """, user)
+         """, **user)
 
     
     def find_incomplete_followees_by_popularity(self, session: Session, username):

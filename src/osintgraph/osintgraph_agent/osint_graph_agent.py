@@ -303,7 +303,8 @@ class OSINTGraphAgent:
                     raise ValueError("No message found in input")
                 outputs = []
                 for tool_call in message.tool_calls:
-                    if tool_call["args"].get("__arg1", "").startswith("Prepare:"):
+                    tool_args = tool_call.get("args", {})
+                    if tool_args.get("__arg1", "").startswith("Prepare:"):
                         self.agent.llm = self.agent.llm_with_tools_with_limit
                         # print("switched with rate limit ")
 
@@ -492,8 +493,3 @@ class OSINTGraphAgent:
 
             except Exception as e:
                 print("Error:", e)
-
-
-
-
-

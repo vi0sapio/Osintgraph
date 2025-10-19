@@ -117,7 +117,7 @@ class InstagramManager:
             )
             return
         existing_user = self.neo4j_manager.execute_read(self.neo4j_manager.get_person_by_username, target_user)
-        if existing_user:
+        if isinstance(existing_user, dict):
             user["account_analysis"] = existing_user.get("account_analysis")
 
         
@@ -480,12 +480,6 @@ class InstagramManager:
                         self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, resume_hash)
                         resume_hash_created =True
                         break
-                    
-                    # if getattr(post, 'typename', None) == "GraphSidecar":
-                    #     post.sidecars = []
-                    #     for sidecar in post.get_sidecar_nodes(start=0, end=-1):
-                    #         post.sidecars.append({"display_url":sidecar.display_url,"is_video":sidecar.is_video, "video_url":sidecar.video_url})
-                    #     post.sidecars = json.dumps(post.sidecars)
                     
                     post.comments_details = {
                         'comments_list'   : [],
