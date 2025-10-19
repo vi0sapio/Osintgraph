@@ -261,7 +261,7 @@ class InstagramManager:
             exit(1)
 
         if not self.username:
-            if accounts:
+            if self.accounts:
                 self.logger.warning("⚠ No default Instagram account is set, and --account was not specified.")
                 self.logger.info("Please set a default account via 'osintgraph setup instagram'.")
                 self.username = self.accounts[0] # Fallback to the first account
