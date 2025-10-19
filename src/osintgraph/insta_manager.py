@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 import instaloader
-from instaloader.exceptions import InvalidArgumentException, ProfileNotExistsException
+from instaloader.exceptions import InvalidArgumentException, ProfileNotExistsException, TooManyRequestsException
 from tqdm import tqdm
 from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 
@@ -45,7 +45,7 @@ class Insta_Config:
     auto_login: bool = True
 
 class InstagramManager:
-    def __init__(self, config : Insta_Config = Insta_Config()):
+    def __init__(self, config : Insta_Config = Insta_Config(), account_username: str = None):
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG if self.config.debug_mode else logging.INFO)
@@ -56,12 +56,27 @@ class InstagramManager:
         self.credential_manager = get_credential_manager()
         self._neo4j_manager = None  # private attribute for lazy init
         self.llmanalyzer = LLMAnalyzer()
-        self.username = ""
         self.key_lock = asyncio.Lock()
         self.has_gemini_key = bool(self.credential_manager.get("GEMINI_API_KEY"))
+
+        self.accounts = self.credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+        self.current_account_index = 0
+        self.tried_all_accounts = False
+
+        if account_username:
+            if account_username in self.accounts:
+                self.current_account_index = self.accounts.index(account_username)
+            else:
+                self.logger.warning(f"Account '{account_username}' not found. Using default account.")
+        elif default_account := self.credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT"):
+            if default_account in self.accounts:
+                self.current_account_index = self.accounts.index(default_account)
+
+        self.username = self.accounts[self.current_account_index] if self.accounts else ""
+
         if self.config.auto_login:
             _ = self.neo4j_manager
-            self._login()
+            self._login(self.username)
             self._initialize_neo4j()
 
     @property
@@ -75,14 +90,21 @@ class InstagramManager:
     # Public Features 
 
     ## Collecting target user's profile and connection data
-    def discover(self, target_user: str):
+    def discover(self, target_user: str, account_username: str = None):
         data_types = ['followers', 'followees', 'posts', 'posts_analysis', 'account_analysis']
         self._rate_limit()
         
-        self.logger.info("PROFILE -")
-        self.logger.info("⧗  Starting to fetch Profile...")
         try:
+            self.logger.info("PROFILE -")
+            self.logger.info("⧗  Starting to fetch Profile...")
             profile = instaloader.Profile.from_username(self.L.context, target_user)
+        except TooManyRequestsException:
+            self.logger.warning(f"Account '{self.username}' is rate-limited.")
+            if self._switch_account():
+                self.discover(target_user, account_username) # Retry with new account
+            else:
+                self.logger.error("All accounts are rate-limited. Please wait and try again later.")
+            return
         except ProfileNotExistsException:
             self.logger.warning(f"Instagram user: {target_user} does not exist. Make sure the username is correct.")
 
@@ -172,7 +194,7 @@ class InstagramManager:
 
 
     ## Uncovering the network of target user  
-    def explore(self, target_user: str, max_people: int = 5):
+    def explore(self, target_user: str, max_people: int = 5, account_username: str = None):
         result = self.neo4j_manager.execute_read(
             self.neo4j_manager.get_person_by_username, username=target_user
         )
@@ -196,7 +218,7 @@ class InstagramManager:
 
             self.logger.info(f"Discovering: {username}")
             try:
-                self.discover(username)
+                self.discover(username, account_username=account_username)
                 # self.logger.info(f"Successfully discovered {username}.")
             except Exception as e:
                 self.logger.error(f"Error discovering {username}: {e}")
@@ -217,7 +239,7 @@ class InstagramManager:
     ### Session Handling
     
     ## Account Login (This will first try to login via session file, if not found then relogin is needed )
-    def _login(self):
+    def _login(self, account_username: str = None):
         self.user_agent = self.credential_manager.get("INSTAGRAM_USER_AGENT")
 
         if self.user_agent:
@@ -232,13 +254,23 @@ class InstagramManager:
             except Exception as e:
                 self.logger.warning(f"Could not generate a random User-Agent: {e}. Using Instaloader's default.")
         # Try to fetch the username from the environment
-        self.username = self.credential_manager.get("INSTAGRAM_USERNAME")
+        self.username = account_username
+
+        if self.username and self.username not in self.accounts:
+            self.logger.error(f"Account '{self.username}' not found in configured accounts. Please run 'osintgraph setup instagram'.")
+            exit(1)
 
         if not self.username:
-            self.logger.warning("⚠  Instagram Login Required.")
-            self.choose_login_method()
-            return
-        try:        
+            if accounts:
+                self.logger.warning("⚠ No default Instagram account is set, and --account was not specified.")
+                self.logger.info("Please set a default account via 'osintgraph setup instagram'.")
+                self.username = self.accounts[0] # Fallback to the first account
+            else:
+                self.logger.warning("⚠  Instagram Login Required.")
+                self.username = self.choose_login_method()
+                return
+
+        try:
             self.L.load_session_from_file(self.username)  # Try loading the session file
             self.logger.info(f"✓  Logged in as {self.username}.")
         except FileNotFoundError:
@@ -258,7 +290,30 @@ class InstagramManager:
             self.logger.warning("Instagram Login required.")
             self.choose_login_method()
 
+    def _switch_account(self):
+        if len(self.accounts) <= 1:
+            self.logger.warning("No other accounts available to switch to.")
+            return False
+
+        if self.tried_all_accounts:
+            self.logger.error("All accounts have been tried and are rate-limited. Pausing for 10 minutes.")
+            time.sleep(600)
+            self.tried_all_accounts = False # Reset after waiting
+
+        self.current_account_index = (self.current_account_index + 1) % len(self.accounts)
+        new_username = self.accounts[self.current_account_index]
         
+        # Check if we have looped through all accounts
+        default_account = self.credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT") or self.accounts[0]
+        if new_username == (self.credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT") or self.accounts[0]):
+             self.tried_all_accounts = True
+
+        self.logger.info(f"Switching to account: {new_username}")
+        self.username = new_username
+        self._login(self.username)
+        
+        return True
+
         
     def choose_login_method(self):
         self.logger.info(
@@ -269,12 +324,16 @@ class InstagramManager:
         self.logger.info("Choose a login method: ")
         choice = input("                       > ")
         try: 
-            
+            new_username = None
             if (choice == "1"):
                 self.logger.info("Login via Firefox's Cookie Session")
                 self.logger.info("Enter your Instagram username:")
-                self.username = input("                       > ")
-                import_session(get_cookiefile(), None)
+                new_username = input("                       > ").strip()
+                if not new_username:
+                    self.logger.error("Username cannot be empty.")
+                    return self.choose_login_method()
+                self.username = new_username
+                import_session(get_cookiefile(), self.username)
                 self.L.load_session_from_file(self.username)  # Try loading the session file
                 self.logger.info(f"✓  Logged in as {self.username}.")
             else:
@@ -285,7 +344,14 @@ class InstagramManager:
                 self.L.save_session_to_file()  # Save session to file for later use
                 self.logger.info(f"✓  Logged in as {self.username}.")
 
-            self.credential_manager.set("INSTAGRAM_USERNAME", self.username)
+            accounts = self.credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+            if self.username not in accounts:
+                accounts.append(self.username)
+                self.credential_manager.set("INSTAGRAM_ACCOUNTS", accounts)
+            if not self.credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT"):
+                self.credential_manager.set("DEFAULT_INSTAGRAM_ACCOUNT", self.username)
+
+            return self.username
 
         except FileNotFoundError:
             self.logger.warning(f"✗ USER: {self.username} Session file not found")
@@ -466,6 +532,14 @@ class InstagramManager:
         except KeyboardInterrupt:
             # instaloader.save_structure_to_file(iterator.freeze(), "resume_info.json")
             pass
+
+        except TooManyRequestsException:
+            self.logger.warning(f"Account '{self.username}' is rate-limited during '{data_type}' fetch.")
+            if self._switch_account():
+                self.logger.info("Retrying fetch with new account...")
+                self._fetch_and_map(profile, data_type) # Retry the operation
+            else:
+                self.logger.error("All accounts are rate-limited. Aborting fetch.")
 
     def analyze_post(self, username: str):
         self.logger.info(f"⧗  Starting to analyze Posts with LLM...")

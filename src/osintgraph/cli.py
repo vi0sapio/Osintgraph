@@ -81,6 +81,8 @@ def main():
             - followers, followees, and posts
             - Adds AI-generated post_analysis for each post (if Gemini API is set)  
             - Adds AI-generated account_analysis using profile metadata and all post analyses (if Gemini API is set)  
+            - Use a specific Instagram account for scraping. If not specified, the default account is used.
+
 
             {ACCENT_COLOR}Options:{RESET}
                 {HEADER_COLOR}--skip [parts]{RESET}         
@@ -95,6 +97,8 @@ def main():
                     Re-fetch or re-analyze the chosen sections even if already completed before.  
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}all{RESET}, {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}, {HEADER_COLOR}post-analysis{RESET}, {HEADER_COLOR}account-analysis{RESET}
 
+                {HEADER_COLOR}--account USERNAME{RESET}
+                    Specify which of your Instagram accounts to use for this action.
             Example:
                 {HEADER_COLOR}osintgraph discover "target_user"{RESET}
                 {HEADER_COLOR}osintgraph discover "target_user" --limit follower=200 post=10 --skip post-analysis account-analysis --force follower followee{RESET}
@@ -102,6 +106,7 @@ def main():
         {HEADER_COLOR}explore{RESET} <username>
             Recursive discovery (runs -discover on each followee of the target account, prioritizing accounts with the largest follower base in the Neo4j database).
             Stops after N accounts (default: 5).
+            - Use a specific Instagram account for scraping. If not specified, the default account is used.
 
             {ACCENT_COLOR}Options:{RESET}
                 {HEADER_COLOR}--max NUMBER{RESET}                
@@ -118,6 +123,8 @@ def main():
                     Re-fetch or re-analyze the chosen sections even if already completed before.  
                     {ACCENT_COLOR}Options:{RESET} {HEADER_COLOR}all{RESET}, {HEADER_COLOR}follower{RESET}, {HEADER_COLOR}followee{RESET}, {HEADER_COLOR}post{RESET}, {HEADER_COLOR}post-analysis{RESET}, {HEADER_COLOR}account-analysis{RESET}
 
+                {HEADER_COLOR}--account USERNAME{RESET}
+                    Specify which of your Instagram accounts to use for this action.
             Example:
                 {HEADER_COLOR}osintgraph explore "target_user" --max 10 --limit follower=1000 followee=500 --rate-limit 1000{RESET}
 
@@ -159,6 +166,7 @@ def main():
     discover_parser.add_argument("--limit", nargs="+", metavar="TYPE=VALUE", help="Set scrape limits. Types: follower, followee, post. Example: --limit follower=2000 post=50")
     discover_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     discover_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
+    discover_parser.add_argument("--account", type=str, help="Specify which Instagram account to use for scraping.")
 
     # Explore command
     explore_parser = subparsers.add_parser("explore", help="Recursive discovery: run 'discover' on all followees of the target username.")
@@ -168,6 +176,7 @@ def main():
     explore_parser.add_argument("--limit", nargs="+", metavar="TYPE=VALUE", help="Set scrape limits. Types: follower, followee, post. Example: --limit follower=2000 post=50")
     explore_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     explore_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
+    explore_parser.add_argument("--account", type=str, help="Specify which Instagram account to use for scraping.")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Launch Osintgraph AI Agent (RAG-powered). Supports keyword & semantic search, simple analysis, and template-assisted complex investigations.")
@@ -206,12 +215,40 @@ def main():
             
             if setup_target in ["all", "instagram"]:
                 # logger.info("⚙︎  Setting up Instagram...")
-                if username := credential_manager.get("INSTAGRAM_USERNAME"):
-                    logger.info(f"✓  Instagram Account configured: ({username})")
+                accounts = credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+                default_account = credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT")
+
+                if accounts:
+                    logger.info("✓  Configured Instagram Accounts:")
+                    for acc in accounts:
+                        is_default = " (default)" if acc == default_account else ""
+                        logger.info(f"   - {acc}{is_default}")
                 else:
                     logger.warning("⚠  No Instagram Account configured.")
-                    InstagramManager(config=Insta_Config(auto_login = False)).choose_login_method()
-                
+
+                logger.info("\nAdd a new Instagram account?")
+                add_new = input("                       > (y/n): ").lower().strip()
+                if add_new == 'y':
+                    new_username = InstagramManager(config=Insta_Config(auto_login=False)).choose_login_method()
+                    if new_username and new_username not in accounts:
+                        accounts.append(new_username)
+                        credential_manager.set("INSTAGRAM_ACCOUNTS", accounts)
+                        if not default_account:
+                            credential_manager.set("DEFAULT_INSTAGRAM_ACCOUNT", new_username)
+                            logger.info(f"✓  Account '{new_username}' added and set as default.")
+                        else:
+                            logger.info(f"✓  Account '{new_username}' added.")
+
+                if len(accounts) > 1:
+                    logger.info("\nSet a default account?")
+                    set_default = input(f"                      > (current default: {default_account}) (y/n): ").lower().strip()
+                    if set_default == 'y':
+                        logger.info("Enter username to set as default:")
+                        new_default = input("                       > ").strip()
+                        if new_default in accounts:
+                            credential_manager.set("DEFAULT_INSTAGRAM_ACCOUNT", new_default)
+                            logger.info(f"✓  Default account set to '{new_default}'.")
+
             if setup_target in ["all", "neo4j"]:
                 # logger.info("⚙︎  Setting up Neo4j...")
                 Neo4jManager()       # Will handle Neo4j login
@@ -256,7 +293,18 @@ def main():
             sys.exit(1)
 
         keys_to_reset = SERVICE_MAP[reset_target]
-        credential_manager.reset(keys_to_reset)
+        if reset_target == "instagram":
+            accounts = credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+            if not accounts:
+                logger.info("No Instagram accounts to reset.")
+            else:
+                logger.info("Which account to reset? (or 'all')")
+                for acc in accounts: logger.info(f" - {acc}")
+                acc_to_reset = input("                       > ").strip()
+                if acc_to_reset == 'all':
+                    credential_manager.reset(keys_to_reset)
+        else:
+            credential_manager.reset(keys_to_reset)
         # logger.info(f"Reset credentials for: {reset_target}")
 
         # Immediately trigger setup
@@ -321,17 +369,17 @@ def main():
         auto_login= True
         )
 
-        manager = InstagramManager(config=config)
+        manager = InstagramManager(config=config, account_username=args.account)
         
         if args.command == "discover":
             print()
             logger.info(f"Discovering: {args.username}")
-            manager.discover(target_user=args.username)
+            manager.discover(target_user=args.username, account_username=args.account)
 
         elif args.command == "explore":
             print()
             logger.info(f"Exploring network of user: {args.username} (Max people: {args.max})")
-            manager.explore(target_user=args.username, max_people=args.max)
+            manager.explore(target_user=args.username, max_people=args.max, account_username=args.account)
 
         
 
