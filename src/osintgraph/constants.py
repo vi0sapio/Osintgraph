@@ -39,5 +39,5 @@ DEBUG_LOGS_DIR = os.path.join(
 os.makedirs(DEBUG_LOGS_DIR, exist_ok=True)
 
 TRACK_FILE = os.path.join(BASE_DIR, "templates_sync.json")
-
+NEO4J_SYNC_QUEUE_FILE = os.path.join(os.path.dirname(TEMPLATES_DIR), "neo4j_sync_queue.json")
 CREDENTIALS_FILE = os.path.join(BASE_DIR, "credentials.json")

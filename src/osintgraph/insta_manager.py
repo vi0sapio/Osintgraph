@@ -116,7 +116,7 @@ class InstagramManager:
                 "                       2. If you log in manually, simply run `osintgraph reset instagram` to re-login."
             )
             return
-        existing_user = self.neo4j_manager.execute_write(self.neo4j_manager.get_person_by_username, target_user)
+        existing_user = self.neo4j_manager.execute_read(self.neo4j_manager.get_person_by_username, target_user)
         if existing_user:
             user["account_analysis"] = existing_user.get("account_analysis")
 

@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from collections import defaultdict
@@ -11,12 +12,25 @@ from dateutil.parser import isoparse
 from typing import Optional, Dict, Generator
 
 from .credential_manager import get_credential_manager
-from .constants import USEFUL_FIELDS
+from .constants import USEFUL_FIELDS, NEO4J_SYNC_QUEUE_FILE
 
 
 @dataclass
 class Neo4j_Config:
     debug_mode: bool = False
+
+
+def _safe_serialize(obj):
+    """Safely serialize an object to a JSON-compatible format."""
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    if isinstance(obj, dict):
+        return {k: _safe_serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_safe_serialize(i) for i in obj]
+    # For other types, convert to string as a fallback
+    return str(obj)
+
 
 
 class Neo4jManager:
@@ -30,6 +44,8 @@ class Neo4jManager:
         self.driver = None
         self._load_or_prompt_credentials()        
         self._connect_to_neo4j()
+        if self.driver:
+            self._process_sync_queue()
             
 
     def _load_or_prompt_credentials(self):
@@ -52,7 +68,12 @@ class Neo4jManager:
 
     def _connect_to_neo4j(self):
         try:
-            self.driver = GraphDatabase.driver(self.URI, auth=self.AUTH)
+            self.driver = GraphDatabase.driver(
+                self.URI,
+                auth=self.AUTH,
+                connection_acquisition_timeout=60,  # 60 seconds
+                connection_timeout=30, # 30 seconds
+            )
             self.driver.verify_connectivity()
             self.logger.info(f"✓  Neo4j connected: ({self.URI})")
 
@@ -71,6 +92,43 @@ class Neo4jManager:
         self.credential.set("NEO4J_PASSWORD", "")
         self._load_or_prompt_credentials()
         self._connect_to_neo4j()
+
+    def _process_sync_queue(self):
+        if not os.path.exists(NEO4J_SYNC_QUEUE_FILE):
+            return
+
+        self.logger.info("Found a pending Neo4j sync queue. Attempting to sync...")
+        try:
+            with open(NEO4J_SYNC_QUEUE_FILE, "r") as f:
+                queue = json.load(f)
+
+            remaining_ops = []
+            for op_data in queue:
+                op_name = op_data.get("operation")
+                args = op_data.get("args", [])
+                kwargs = op_data.get("kwargs", {})
+
+                if not op_name or not hasattr(self, op_name):
+                    self.logger.warning(f"Skipping invalid operation in queue: {op_name}")
+                    continue
+
+                operation = getattr(self, op_name)
+                try:
+                    # Use execute_write to run the queued operation
+                    self.execute_write(operation, *args, **kwargs)
+                    self.logger.info(f"✓  Synced operation: {op_name}")
+                except ServiceUnavailable:
+                    self.logger.warning(f"⚠  Failed to sync operation {op_name}, will retry later.")
+                    remaining_ops.append(op_data)
+
+            if remaining_ops:
+                with open(NEO4J_SYNC_QUEUE_FILE, "w") as f:
+                    json.dump(remaining_ops, f, indent=2)
+            else:
+                os.remove(NEO4J_SYNC_QUEUE_FILE)
+                self.logger.info("✓  Neo4j sync queue processed successfully.")
+        except (IOError, json.JSONDecodeError) as e:
+            self.logger.error(f"Error processing Neo4j sync queue file: {e}. The file might be corrupted.")
     
     # Function to get session
     @contextmanager
@@ -88,14 +146,51 @@ class Neo4jManager:
             session.close()  # Ensure session is closed when done
 
     def execute_read(self, operation, *args, **kwargs):
-        """Centralized method for read operations."""
-        with self.get_session() as session:
-            return session.execute_read(operation, *args, **kwargs)
+        """Centralized method for read operations with retry logic."""
+        for attempt in range(3):
+            try:
+                with self.get_session() as session:
+                    return session.execute_read(operation, *args, **kwargs)
+            except ServiceUnavailable as e:
+                if attempt < 2:
+                    self.logger.warning(f"Neo4j connection error (attempt {attempt + 1}/3), retrying... Error: {e}")
+                    time.sleep(2 * (attempt + 1))
+                else:
+                    raise
     
     def execute_write(self, operation, *args, **kwargs):
-        """Centralized method for write operations."""
-        with self.get_session() as session:
-            session.execute_write(operation, *args, **kwargs)
+        """Centralized method for write operations with retry logic."""
+        for attempt in range(3):
+            try:
+                with self.get_session() as session:
+                    return session.execute_write(operation, *args, **kwargs)
+            except ServiceUnavailable as e:
+                if attempt < 2:
+                    self.logger.warning(f"Neo4j connection error (attempt {attempt + 1}/3), retrying... Error: {e}")
+                    time.sleep(2 * (attempt + 1))
+                else:
+                    self.logger.error(f"Neo4j write operation failed after 3 attempts: {e}. Queuing for later sync.")
+                    self._queue_failed_operation(operation, args, kwargs)
+                    # Instead of raising, we can return a value indicating failure or None
+                    return None
+
+    def _queue_failed_operation(self, operation, args, kwargs):
+        op_data = {
+            "operation": operation.__name__,
+            "args": _safe_serialize(list(args)),
+            "kwargs": _safe_serialize(kwargs),
+            "timestamp": datetime.now().isoformat()
+        }
+        try:
+            queue = []
+            if os.path.exists(NEO4J_SYNC_QUEUE_FILE):
+                with open(NEO4J_SYNC_QUEUE_FILE, "r") as f:
+                    queue = json.load(f)
+            queue.append(op_data)
+            with open(NEO4J_SYNC_QUEUE_FILE, "w") as f:
+                json.dump(queue, f, indent=2)
+        except (IOError, json.JSONDecodeError) as e:
+            self.logger.error(f"Could not write to Neo4j sync queue file: {e}")
     def create_unique_constraint(self, session: Session):
         existing_constraints = session.run("SHOW CONSTRAINTS")
         existing_names = [record["name"] for record in existing_constraints]
