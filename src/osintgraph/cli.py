@@ -215,11 +215,11 @@ def main():
             
             if setup_target in ["all", "instagram"]:
                 # logger.info("⚙︎  Setting up Instagram...")
-                accounts = credential_manager.get("INSTAGRAM_ACCOUNTS", [])
-                default_account = credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT")
-
-                if accounts:
+                if accounts := credential_manager.get("INSTAGRAM_ACCOUNTS", []):
                     logger.info("✓  Configured Instagram Accounts:")
+                    default_account = credential_manager.get(
+                        "DEFAULT_INSTAGRAM_ACCOUNT"
+                    )
                     for acc in accounts:
                         is_default = " (default)" if acc == default_account else ""
                         logger.info(f"   - {acc}{is_default}")
@@ -229,6 +229,8 @@ def main():
                 logger.info("\nAdd a new Instagram account?")
                 add_new = input("                       > (y/n): ").lower().strip()
                 if add_new == 'y':
+                    accounts = credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+                    default_account = credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT")
                     new_username = InstagramManager(config=Insta_Config(auto_login=False)).choose_login_method()
                     if new_username and new_username not in accounts:
                         accounts.append(new_username)
@@ -239,7 +241,7 @@ def main():
                         else:
                             logger.info(f"✓  Account '{new_username}' added.")
 
-                if len(accounts) > 1:
+                if accounts and len(accounts) > 1:
                     logger.info("\nSet a default account?")
                     set_default = input(f"                      > (current default: {default_account}) (y/n): ").lower().strip()
                     if set_default == 'y':

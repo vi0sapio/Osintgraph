@@ -19,9 +19,10 @@ class CredentialManager:
                 "NEO4J_URI": "",
                 "NEO4J_USERNAME": "",
                 "NEO4J_PASSWORD": "",
-                "INSTAGRAM_USERNAME": "",
+                "INSTAGRAM_ACCOUNTS": [],
+                "DEFAULT_INSTAGRAM_ACCOUNT": "",
                 "INSTAGRAM_USER_AGENT": "",
-                "GEMINI_API_KEY": ""
+                "GEMINI_API_KEY": "",
             }
             self._save()
         else:
@@ -43,8 +44,8 @@ class CredentialManager:
         with open(CREDENTIALS_FILE, "w") as f:
             json.dump(self.credentials, f, indent=4)
 
-    def get(self, key):
-        return self.credentials.get(key, "")
+    def get(self, key, default=""):
+        return self.credentials.get(key, default)
     
     def set(self, key, value):
         self.credentials[key] = value
