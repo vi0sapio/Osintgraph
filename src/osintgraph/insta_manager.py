@@ -228,8 +228,11 @@ class InstagramManager:
             if username == self.config.skip_account:
                 self.logger.info(f"⤷  Skipped {username} as per configuration.")
                 seen.add(username)
+                step += 1
+                print()
+                self.logger.info(f"Step {step}/{max_people} complete.")
                 continue
-                
+
             try:
                 self.discover(username, account_username=account_username)
                 # self.logger.info(f"Successfully discovered {username}.")
