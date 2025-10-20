@@ -27,6 +27,7 @@ from .utils.data_extractors import (
 from .constants import (
     SESSIONS_DIR
 )
+from .migrate_hashes import migrate_resume_hashes
 
 
 
@@ -159,9 +160,6 @@ class InstagramManager:
                 if force_this:
                     
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, target_user, **{data_type: False})
-
-                    if data_type in ['followers', 'followees', 'posts']:
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
 
                 if force_this or not completions.get(data_type, False):
 
@@ -437,11 +435,6 @@ class InstagramManager:
                 for person in tqdm(iterator, desc=f"Fetching {data_type}", unit="people", total=total_items, ncols=70):
                     
                     if counter >= max_count:
-                        resume_hash = {
-                            data_type: json.dumps(instaloader.get_json_structure(iterator.freeze()))
-                        }
-                        # Save a session-specific hash as a fallback
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash) 
                         resume_hash_created =True
                         break
                     
@@ -472,7 +465,6 @@ class InstagramManager:
                     self.logger.info(f"✎  Saved resume point for {data_type.capitalize()}")
                 else:
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{data_type: True} )
-                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
                     self.logger.info(f"✓  {data_type.capitalize()} fetched")
 
 
@@ -493,11 +485,6 @@ class InstagramManager:
                 for post in tqdm(iterator, desc=f"Fetching {data_type}", unit="post", total=total_items, ncols=70):
                     
                     if counter >= max_count:
-                        result[data_type]["batch_mode"] = True
-                        resume_hash = {
-                            data_type: json.dumps(instaloader.get_json_structure(iterator.freeze()))
-                        }
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash) # Fallback save
                         resume_hash_created =True
                         break
                     
@@ -536,7 +523,6 @@ class InstagramManager:
                     self.logger.info(f"✎  Saved resume point for {data_type.capitalize()}")
                 else:
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{data_type: True} )
-                    self.logger.info(f"✓  {data_type.capitalize()} fetched")
                 
 
 

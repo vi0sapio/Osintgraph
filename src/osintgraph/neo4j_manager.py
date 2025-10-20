@@ -327,6 +327,8 @@ class Neo4jManager:
 
          """, **user)
 
+         
+
     
     def find_incomplete_followees_by_popularity(self, session: Session, username):
         query = """
@@ -364,76 +366,20 @@ class Neo4jManager:
         result = session.run(query, username=username)
         return [record for record in result]
 
-    def save_resume_hash(self, session: Session, id: int, scraper_username: str, hashes: dict[str, str]):
-        prop_map = {
-            "followers": "_followers_resume_hash",
-            "followees": "_followees_resume_hash",
-            "posts": "_posts_resume_hash",
-        }
-    
-        updates = []
-        params = {"id": id, "scraper_username": scraper_username}
-    
-        for key, value in hashes.items():
-            prop = prop_map.get(key)
-            if prop:
-                # Use apoc.map.set to update a key within the JSON string property
-                updates.append(f"p.{prop} = apoc.convert.toJson(apoc.map.set(apoc.convert.fromJson(coalesce(p.{prop}, '{{}}')), $scraper_username, ${key}_value))")
-                params[f"{key}_value"] = value
-    
-        if not updates:
-            return
-    
-        query = f"""
-            MATCH (p:Person {{id: $id}})
-            SET {', '.join(updates)}
-        """
-        session.run(query, **params)
-
-    def get_resume_hashes(self, session: Session, username: str, scraper_username: str, types: list[str]) -> dict[str, str]:
-        prop_map = {
-            "followers": "_followers_resume_hash",
-            "followees": "_followees_resume_hash",
-            "posts": "_posts_resume_hash",
-        }
-
-        # Map requested types to properties
-        props = {t: prop_map[t] for t in types}
-
-        # Build RETURN clauses to extract the specific hash for the scraper_username
-        return_clauses = [
-            f"apoc.convert.fromJson(coalesce(p.{prop},'{{}}'))[$scraper_username] AS {t}"
-            for t, prop in props.items()
-        ]
-
-        query = f"""
-            MATCH (p:Person {{username: $username}})
-            RETURN {', '.join(return_clauses)}
-            LIMIT 1
-        """
-
-        try:
-            result = session.run(query, username=username, scraper_username=scraper_username)
-            record = result.single()
-            if not record:
-                return {t: "" for t in types}
-            return {t: record.get(t) or "" for t in types}
-        except Neo4jError as e:
-            self.logger.warning(f"Neo4j error fetching resume hashes for {username}: {e}")
-            return {t: "" for t in types}
-
     def save_shared_resume_cursor(self, session: Session, profile_id: int, data_type: str, end_cursor: str, count: int):
         """Saves a shared, account-agnostic resume cursor."""
         prop_name = f"_shared_{data_type}_cursor"
+        cursor_data = {
+            "end_cursor": end_cursor,
+            "count": count,
+        }
+        cursor_json_string = json.dumps(cursor_data)
         query = f"""
             MATCH (p:Person {{id: $profile_id}})
-            SET p.{prop_name} = apoc.convert.toJson({{
-                end_cursor: $end_cursor,
-                count: $count,
-                updated_at: datetime()
-            }})
+            SET p.{prop_name} = $cursor_json_string,
+                p._shared_{data_type}_cursor_updated_at = datetime()
         """
-        session.run(query, profile_id=profile_id, end_cursor=end_cursor, count=count)
+        session.run(query, profile_id=profile_id, cursor_json_string=cursor_json_string)
 
     def get_shared_resume_cursor(self, session: Session, profile_id: int, data_type: str) -> dict:
         """Gets the shared resume cursor for a specific data type."""
@@ -476,30 +422,25 @@ class Neo4jManager:
                 self.logger.warning(f"Property not found for ID {id}, using default value.")
     def manage_follow_relationships(self, session: Session, user_id, result: dict):
 
-        try:
-            with self.get_session() as session:
+        # This function is executed within a transaction, so we use the provided session directly.
 
-                # === Handle FOLLOWEES if present ===
-                if 'followees' in result:
-                    followees_id = [f['id'] for f in result['followees']['data']]
-                    session.execute_write(self.new_followees, user_id, followees_id)
+        # === Handle FOLLOWEES if present ===
+        if 'followees' in result:
+            followees_id = [f['id'] for f in result['followees']['data']]
+            self.new_followees(session, user_id, followees_id)
 
-                    if not result['followees'].get('batch_mode', False):
-                        session.execute_write(self.unfollowed_followees, user_id, followees_id)
-                        session.execute_write(self.refollowed_followees, user_id, followees_id)
+            if not result['followees'].get('batch_mode', False):
+                self.unfollowed_followees(session, user_id, followees_id)
+                self.refollowed_followees(session, user_id, followees_id)
 
-                # === Handle FOLLOWERS if present ===
-                if 'followers' in result:
-                    followers_id = [f['id'] for f in result['followers']['data']]
-                    session.execute_write(self.new_followers, user_id, followers_id)
+        # === Handle FOLLOWERS if present ===
+        if 'followers' in result:
+            followers_id = [f['id'] for f in result['followers']['data']]
+            self.new_followers(session, user_id, followers_id)
 
-                    if not result['followers'].get('batch_mode', False):
-                        session.execute_write(self.unfollowed_followers, user_id, followers_id)
-                        session.execute_write(self.refollowed_followers, user_id, followers_id)
-
-        except Exception as e:
-            self.logger.error(f"Error while managing relationships: {e}")
-            raise
+            if not result['followers'].get('batch_mode', False):
+                self.unfollowed_followers(session, user_id, followers_id)
+                self.refollowed_followers(session, user_id, followers_id)
 
 
     

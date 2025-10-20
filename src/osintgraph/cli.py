@@ -11,7 +11,7 @@ from packaging import version as pkg_version
 from .logger import setup_root_logger
 from .utils.monkey_patches import custom_get_likes
 instaloader.structures.Post.get_likes = custom_get_likes
-from .insta_manager import InstagramManager, Insta_Config
+from .insta_manager import InstagramManager, Insta_Config, migrate_resume_hashes
 from .neo4j_manager import Neo4jManager
 from .credential_manager import get_credential_manager
 from .osintgraph_agent import OSINTGraphAgent
@@ -137,6 +137,12 @@ def main():
             Example:
                 {HEADER_COLOR}osintgraph agent --debug{RESET}
     
+        {HEADER_COLOR}migrate{RESET}
+            Run a one-time migration to update old resume hashes to the new format.
+            This should be run once after updating to a version with the new resume system.
+            Example:
+                {HEADER_COLOR}osintgraph migrate{RESET}
+
     {ACCENT_COLOR} Template Folder:{RESET}
         Path: {HEADER_COLOR}{TEMPLATES_DIR}{RESET}
         This folder is used to store prompt templates.
@@ -183,6 +189,8 @@ def main():
     # agent_parser.add_argument("--rate-limit", action="store_true", default=False, help="Enable rate limiter for the AI Agent to reduce hitting API rate limits.")
     agent_parser.add_argument("--debug", action="store_true", help="Enable debug output for template")
 
+    # Migrate command
+    migrate_parser = subparsers.add_parser("migrate", help="Migrate old resume hashes to the new format.")
 
     
     if len(sys.argv) == 1:
@@ -392,9 +400,15 @@ def main():
             sys.exit(1)
         
         setup_root_logger(args.debug)
-
         agent = OSINTGraphAgent(debug=args.debug)
-        asyncio.run(agent.run())
+        asyncio.run(agent.start_agent())
+
+    elif args.command == "migrate":
+        logger.info("Starting resume hash migration process...")
+        nm = Neo4jManager()
+        migrate_resume_hashes(nm)
+        logger.info("Migration process finished.")
+
     else:
         logger.error("❕  No valid command provided. Use -h to see usage.")
         sys.exit(1)
