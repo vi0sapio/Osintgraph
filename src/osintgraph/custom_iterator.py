@@ -56,7 +56,7 @@ class ResumableNodeIterator:
         # Store the cursor *before* getting the next item, in case it fails.
         page_info = getattr(self.node_iterator, 'page_info', {})
         current_cursor = page_info.get('end_cursor') if page_info else None
-        current_count = getattr(self.node_iterator, 'total_index', 0)
+        current_count = getattr(self.node_iterator, '_total_index', 0)
 
         try:
             item = next(self.node_iterator)
@@ -64,7 +64,7 @@ class ResumableNodeIterator:
 
             # If the cursor has changed, it means a new page was fetched.
             if new_cursor != current_cursor:
-                self.save_resume_state(new_cursor, getattr(self.node_iterator, 'total_index', 0))
+                self.save_resume_state(new_cursor, getattr(self.node_iterator, '_total_index', 0))
 
             return item
         except StopIteration:

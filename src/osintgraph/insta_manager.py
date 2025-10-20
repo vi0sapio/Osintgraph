@@ -631,11 +631,13 @@ class InstagramManager:
             return []
 
         # Reverse the list if requested
+        returns = [record.data() for record in result][:limit]
         if reverse:
-            result.reverse()
+            returns.reverse()
 
         # Return at most `limit` results
-        return [record.data() for record in result][:limit]
+
+        return returns
 
     
     ### Resume Hash Logic 
