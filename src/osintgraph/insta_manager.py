@@ -16,6 +16,7 @@ from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 from .credential_manager import get_credential_manager
 from .get_session import *
 from .services.llm_analyzer import LLMAnalyzer
+from .custom_iterator import ResumableNodeIterator
 from .neo4j_manager import *
 from .utils.data_extractors import (
     extract_comment_data,
@@ -160,7 +161,7 @@ class InstagramManager:
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, target_user, **{data_type: False})
 
                     if data_type in ['followers', 'followees', 'posts']:
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, {data_type: ""})
+                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
 
                 if force_this or not completions.get(data_type, False):
 
@@ -415,51 +416,63 @@ class InstagramManager:
         resume_hash_created = False
 
         try:
+            BATCH_SIZE = 100
 
             if data_type in ("followers", "followees"):
                 
                 method = options[data_type]['method']
-                iterator, is_resume = self.maybe_resume_iterator(method, data_type, profile.username)
-                if is_resume:
-                    self.logger.info(f"♻  Resuming unfinished {data_type.capitalize()} fetch...")
-                else:
-                    self.logger.info(f"⧗  Starting to fetch {data_type.capitalize()}...")
+                base_iterator = method()
 
-                result = {
-                    data_type: {
-                        "data": [],
-                        "batch_mode": is_resume
-                    }
-                }
+                # Use our new resumable iterator
+                iterator = ResumableNodeIterator(
+                    node_iterator=base_iterator,
+                    neo4j_manager=self.neo4j_manager,
+                    profile_id=profile.userid,
+                    scraper_username=self.username,
+                    data_type=data_type,
+                    total_count=total_items
+                )
 
+                batch_data = []
                 for person in tqdm(iterator, desc=f"Fetching {data_type}", unit="people", total=total_items, ncols=70):
                     
                     if counter >= max_count:
-                        result[data_type]["batch_mode"] = True
                         resume_hash = {
                             data_type: json.dumps(instaloader.get_json_structure(iterator.freeze()))
                         }
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, resume_hash)
+                        # Save a session-specific hash as a fallback
+                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash) 
                         resume_hash_created =True
                         break
                     
                     
                     person_data = extract_user_metadata(person)
-                    result[data_type]["data"].append(person_data)
+                    batch_data.append(person_data)
+
+                    if len(batch_data) >= BATCH_SIZE:
+                        self.neo4j_manager.execute_write(self.neo4j_manager.create_users, batch_data)
+                        relationship_data = {data_type: {"data": batch_data, "batch_mode": True}}
+                        self.neo4j_manager.execute_write(self.neo4j_manager.manage_follow_relationships, profile.userid, relationship_data)
+                        batch_data = []
+
                     self._request_made_and_wait()
                     counter +=1
 
-                if result[data_type]["data"]:
-                    self.neo4j_manager.execute_write(self.neo4j_manager.create_users, result[data_type]["data"])
+                if batch_data: # Process any remaining items in the last batch
+                    self.neo4j_manager.execute_write(self.neo4j_manager.create_users, batch_data)
                     self.logger.debug(f"Successfully added {data_type}.")
-                    self.neo4j_manager.execute_write(self.neo4j_manager.manage_follow_relationships, profile.userid, result)
-                    
+                    relationship_data = {data_type: {"data": batch_data, "batch_mode": True}}
+                    self.neo4j_manager.execute_write(self.neo4j_manager.manage_follow_relationships, profile.userid, relationship_data)
+
+                # This logic is now handled by the iterator's clear_resume_state
+                # if not resume_hash_created:
+                #     self.neo4j_manager.execute_write(self.neo4j_manager.manage_follow_relationships, profile.userid, {data_type: {"data": [], "batch_mode": False}})
                 if resume_hash_created:
                     self.logger.info(f"✓  {data_type.capitalize()} fetched (partially)")
                     self.logger.info(f"✎  Saved resume point for {data_type.capitalize()}")
                 else:
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{data_type: True} )
-                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, {data_type: ""})
+                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
                     self.logger.info(f"✓  {data_type.capitalize()} fetched")
 
 
@@ -485,7 +498,7 @@ class InstagramManager:
                         resume_hash = {
                             data_type: json.dumps(instaloader.get_json_structure(iterator.freeze()))
                         }
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, resume_hash)
+                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash)
                         resume_hash_created =True
                         break
                     
@@ -525,7 +538,7 @@ class InstagramManager:
                     self.logger.info(f"✓  {data_type.capitalize()} fetched (partially)")
                     self.logger.info(f"✎  Saved resume point for {data_type.capitalize()}")
                 else:
-                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, {data_type: ""})
+                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{data_type: True} )
                     self.logger.info(f"✓  {data_type.capitalize()} fetched")
                 
@@ -622,24 +635,8 @@ class InstagramManager:
     
     ### Resume Hash Logic 
     def maybe_resume_iterator(self, method, data_type: str, username: str):
-        iterator = method()
-        is_resume = False
-        resume_hash = self.neo4j_manager.execute_read(
-            self.neo4j_manager.get_resume_hashes,
-            username,
-            [data_type]
-        )
-
-        if resume_hash.get(data_type):
-            is_resume = True
-            try:
-                iterator.thaw(instaloader.load_structure(self.L.context, json.loads(resume_hash[data_type])))
-            except InvalidArgumentException as e:
-                iterator = method()  # Recreate iterator from scratch
-                self.logger.warning(f"⚠  {e} for {username}. Restarting from scratch.")
-
-
-        return iterator, is_resume
+        # This function is now replaced by the ResumableNodeIterator
+        pass
 
 
     def _request_made_and_wait(self, is_post: bool = False):

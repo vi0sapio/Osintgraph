@@ -364,45 +364,33 @@ class Neo4jManager:
         result = session.run(query, username=username)
         return [record for record in result]
 
-    def save_resume_hash(self, session: Session, id: int, hashes: dict[str, str]):
+    def save_resume_hash(self, session: Session, id: int, scraper_username: str, hashes: dict[str, str]):
         prop_map = {
             "followers": "_followers_resume_hash",
             "followees": "_followees_resume_hash",
             "posts": "_posts_resume_hash",
         }
-
+    
         updates = []
-        params = {"id": id}
-
+        params = {"id": id, "scraper_username": scraper_username}
+    
         for key, value in hashes.items():
             prop = prop_map.get(key)
             if prop:
-                updates.append(f"p.{prop} = ${prop}")
-                params[prop] = value
-
+                # Use apoc.map.set to update a key within the JSON string property
+                updates.append(f"p.{prop} = apoc.convert.toJson(apoc.map.set(apoc.convert.fromJson(coalesce(p.{prop}, '{{}}')), $scraper_username, ${key}_value))")
+                params[f"{key}_value"] = value
+    
         if not updates:
-            return  # Nothing to update
-
+            return
+    
         query = f"""
             MATCH (p:Person {{id: $id}})
             SET {', '.join(updates)}
         """
-
         session.run(query, **params)
 
-    # def save_resume_hash_v2(self, session, username, resume_hash):
-        
-    #     followers_resume_hash = resume_hash.get('followers', "")
-    #     followees_resume_hash = resume_hash.get('followees', "")
-    #     session.run("""
-    #         MATCH (p:Person {username: $username})
-    #         SET p.followers_resume_hash = $followers_resume_hash
-    #         SET p.followees_resume_hash = $followees_resume_hash
-    #         REMOVE p.resume_hash
-    #         """,username=username, followers_resume_hash = followers_resume_hash, followees_resume_hash = followees_resume_hash
-    #     )
-
-    def get_resume_hashes(self, session: Session, username: str, types: list[str]) -> dict[str, str]:
+    def get_resume_hashes(self, session: Session, username: str, scraper_username: str, types: list[str]) -> dict[str, str]:
         prop_map = {
             "followers": "_followers_resume_hash",
             "followees": "_followees_resume_hash",
@@ -412,20 +400,20 @@ class Neo4jManager:
         # Map requested types to properties
         props = {t: prop_map[t] for t in types}
 
-        conditions = [f"p.{prop} <> ''" for prop in props.values()]
-        return_clauses = [f"p.{prop} AS {t}" for t, prop in props.items()]
-
-        where_clause = " OR ".join(conditions) if conditions else "true"
+        # Build RETURN clauses to extract the specific hash for the scraper_username
+        return_clauses = [
+            f"apoc.convert.fromJson(coalesce(p.{prop},'{{}}'))[$scraper_username] AS {t}"
+            for t, prop in props.items()
+        ]
 
         query = f"""
             MATCH (p:Person {{username: $username}})
-            WHERE {where_clause}
             RETURN {', '.join(return_clauses)}
             LIMIT 1
         """
 
         try:
-            result = session.run(query, username=username)
+            result = session.run(query, username=username, scraper_username=scraper_username)
             record = result.single()
             if not record:
                 return {t: "" for t in types}
@@ -433,6 +421,42 @@ class Neo4jManager:
         except Neo4jError as e:
             self.logger.warning(f"Neo4j error fetching resume hashes for {username}: {e}")
             return {t: "" for t in types}
+
+    def save_shared_resume_cursor(self, session: Session, profile_id: int, data_type: str, end_cursor: str, count: int):
+        """Saves a shared, account-agnostic resume cursor."""
+        prop_name = f"_shared_{data_type}_cursor"
+        query = f"""
+            MATCH (p:Person {{id: $profile_id}})
+            SET p.{prop_name} = apoc.convert.toJson({{
+                end_cursor: $end_cursor,
+                count: $count,
+                updated_at: datetime()
+            }})
+        """
+        session.run(query, profile_id=profile_id, end_cursor=end_cursor, count=count)
+
+    def get_shared_resume_cursor(self, session: Session, profile_id: int, data_type: str) -> dict:
+        """Gets the shared resume cursor for a specific data type."""
+        prop_name = f"_shared_{data_type}_cursor"
+        query = f"""
+            MATCH (p:Person {{id: $profile_id}})
+            WHERE p.{prop_name} IS NOT NULL AND p.{prop_name} <> ""
+            RETURN p.{prop_name} AS cursor_data
+        """
+        result = session.run(query, profile_id=profile_id)
+        record = result.single()
+        if record and record["cursor_data"]:
+            return json.loads(record["cursor_data"])
+        return {}
+
+    def clear_shared_resume_cursor(self, session: Session, profile_id: int, data_type: str):
+        """Clears the shared resume cursor property."""
+        prop_name = f"_shared_{data_type}_cursor"
+        query = f"""
+            MATCH (p:Person {{id: $profile_id}})
+            SET p.{prop_name} = ""
+        """
+        session.run(query, profile_id=profile_id)
 
     def find_resume_hash(self, session: Session, limit=100):
     
