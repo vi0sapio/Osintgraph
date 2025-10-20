@@ -99,6 +99,8 @@ def main():
 
                 {HEADER_COLOR}--account USERNAME{RESET}
                     Specify which of your Instagram accounts to use for this action.
+                {HEADER_COLOR}--skip-accounts [USERNAMES]{RESET}
+                    A list of usernames to skip during discovery.
             Example:
                 {HEADER_COLOR}osintgraph discover "target_user"{RESET}
                 {HEADER_COLOR}osintgraph discover "target_user" --limit follower=200 post=10 --skip post-analysis account-analysis --force follower followee{RESET}
@@ -125,6 +127,8 @@ def main():
 
                 {HEADER_COLOR}--account USERNAME{RESET}
                     Specify which of your Instagram accounts to use for this action.
+                {HEADER_COLOR}--skip-accounts [USERNAMES]{RESET}
+                    A list of usernames to skip during exploration.
             Example:
                 {HEADER_COLOR}osintgraph explore "target_user" --max 10 --limit follower=1000 followee=500 --rate-limit 1000{RESET}
 
@@ -173,6 +177,7 @@ def main():
     discover_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     discover_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
     discover_parser.add_argument("--account", type=str, help="Specify which Instagram account to use for scraping.")
+    discover_parser.add_argument("--skip-accounts", nargs="+", help="A list of usernames to skip.")
 
     # Explore command
     explore_parser = subparsers.add_parser("explore", help="Recursive discovery: run 'discover' on all followees of the target username.")
@@ -183,6 +188,7 @@ def main():
     explore_parser.add_argument("--rate-limit", type=int, default=200, help="Pause for 5–10 min after every N requests to reduce Instagram detection (default: 200).")
     explore_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
     explore_parser.add_argument("--account", type=str, help="Specify which Instagram account to use for scraping.")
+    explore_parser.add_argument("--skip-accounts", nargs="+", help="A list of usernames to skip during exploration.")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Launch Osintgraph AI Agent (RAG-powered). Supports keyword & semantic search, simple analysis, and template-assisted complex investigations.")
@@ -380,7 +386,8 @@ def main():
         skip_posts_analysis = "all" in skip_args or "post-analysis" in skip_args,
         skip_account_analysis = "all" in skip_args or "account-analysis" in skip_args,
         force=config_force,
-        auto_login= True
+        auto_login= True,
+        skip_accounts=args.skip_accounts or []
         )
 
         manager = InstagramManager(config=config, account_username=args.account)
