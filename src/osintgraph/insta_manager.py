@@ -44,8 +44,8 @@ class Insta_Config:
     skip_followees: bool = False
     skip_posts: bool = False
     skip_posts_analysis: bool = False
-    skip_account_analysis: bool = False
-    skip_account: str = "nature__click_pic"
+    skip_accounts: List[str] = field(default_factory=lambda: ["nature__click_pic"])
+    skip_account_analysis: bool = False    
     max_request: int = 200
     debug_mode: bool = False
     force: List[str] = field(default_factory=list)
@@ -216,22 +216,34 @@ class InstagramManager:
             self.logger.warning("No famous users found.")
             return
 
-        step = 0
-        seen = set()
+        # step = 0
+        # seen = set()
+        # Convert to an iterator to pull users one by one
+        user_iterator = iter(famous_users)
+        discovered_count = 0
+        
+        # Use a while loop to respect max_people
+        while discovered_count < max_people:
+            try:
+                user = next(user_iterator)
+                username = user.get('username')
+            except StopIteration:
+                self.logger.info("No more users to explore.")
+                break
 
-        for user in famous_users:
-            username = user.get('username')
-            if not username or username in seen:
+        # for user in famous_users:
+        #     username = user.get('username')
+        #     if not username or username in seen:
+            # Skip if username is invalid
+            if not username:
+                continue
+
+            if username in self.config.skip_accounts:
+                self.logger.info(f"⤷  Skipped {username} as per configuration.")
                 continue
 
             self.logger.info(f"Discovering: {username}")
-            if username == self.config.skip_account:
-                self.logger.info(f"⤷  Skipped {username} as per configuration.")
-                seen.add(username)
-                step += 1
-                print()
-                self.logger.info(f"Step {step}/{max_people} complete.")
-                continue
+
 
             try:
                 self.discover(username, account_username=account_username)
@@ -240,14 +252,16 @@ class InstagramManager:
                 self.logger.error(f"Error discovering {username}: {e}")
                 continue
 
-            seen.add(username)
-            step += 1
+            # seen.add(username)
+            # step += 1
+            
+            discovered_count += 1
             print()
-            self.logger.info(f"Step {step}/{max_people} complete.")
+            self.logger.info(f"Step {discovered_count}/{max_people} complete.")
             time.sleep(random.uniform(5, 10))  # Avoid rate limits
 
-            if step >= max_people:
-                break
+            # if step >= max_people:
+            #     break
 
     #############################################################################################
     # Internal Features
