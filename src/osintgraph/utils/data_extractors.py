@@ -4,7 +4,10 @@ import json
 
 def safe_int(value):
     """Safely convert a value to an integer, returning None if conversion fails."""
-    return int(value) if value is not None else None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 ## Extract target user data
 def extract_profile_data(profile):
     """
@@ -13,7 +16,7 @@ def extract_profile_data(profile):
     """
     return {
         'username': getattr(profile, 'username', None),
-        'id': safe_int(getattr(profile, 'userid', None)),
+        'id': safe_int(getattr(profile, 'id', getattr(profile, 'userid', None))),
         'fullname': getattr(profile, 'full_name', None),
         'bio': getattr(profile, 'biography', None),
         'biography_mentions': getattr(profile, 'biography_mentions', None),
@@ -108,4 +111,46 @@ def extract_post_data(post):
         'is_pinned': getattr(post, 'is_pinned', None),
         'image_analysis': "",
         'post_analysis':"",
+    }
+
+def extract_json_block(raw: str):
+    raw = raw.strip()
+
+    # Attempt 1: Try direct parse
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e1:
+        first_error = e1  # Save first error
+
+    # Attempt 2: Remove code fences like ```json ... ```
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE).strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 3a: Fallback between first '{' and last '}'
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and start < end:
+        try:
+            json_str = raw[start:end + 1]
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+
+    # Attempt 3b: Fallback between first '[' and last ']'
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start != -1 and end != -1 and start < end:
+        try:
+            json_str = raw[start:end + 1]
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+
+    # Final fallback: return first error and full raw input
+    return {
+        "error": f"{first_error.msg} (line {first_error.lineno}, col {first_error.colno})",
+        "raw_input": raw
     }

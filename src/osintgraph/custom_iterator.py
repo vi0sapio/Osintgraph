@@ -35,7 +35,8 @@ class ResumableNodeIterator:
                     'end_cursor': resume_data["end_cursor"], 'has_next_page': True
                 })
                 self.node_iterator.nodes_per_chunk = 50 # Standard page size
-                self.node_iterator.total_index = resume_data.get("count", 0)
+                self.node_iterator._total_index = resume_data.get("count", 0)
+
                 self.is_resumed = True
             except Exception as e:
                 self.logger.warning(f"Failed to resume from shared cursor: {e}. Starting from scratch.")
@@ -54,7 +55,7 @@ class ResumableNodeIterator:
 
         # Store the cursor *before* getting the next item, in case it fails.
         page_info = getattr(self.node_iterator, 'page_info', {})
-        current_cursor = page_info.get('end_cursor')
+        current_cursor = page_info.get('end_cursor') if page_info else None
         current_count = getattr(self.node_iterator, 'total_index', 0)
 
         try:
@@ -63,7 +64,7 @@ class ResumableNodeIterator:
 
             # If the cursor has changed, it means a new page was fetched.
             if new_cursor != current_cursor:
-                self.save_resume_state(new_cursor, self.node_iterator.total_index)
+                self.save_resume_state(new_cursor, getattr(self.node_iterator, 'total_index', 0))
 
             return item
         except StopIteration:

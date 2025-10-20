@@ -275,7 +275,6 @@ class InstagramManager:
             else:
                 self.logger.warning("⚠  Instagram Login Required.")
                 self.username = self.choose_login_method()
-                return
 
         try:
             self.L.load_session_from_file(self.username, filename=os.path.join(SESSIONS_DIR, self.username))
@@ -353,6 +352,10 @@ class InstagramManager:
 
             accounts = self.credential_manager.get("INSTAGRAM_ACCOUNTS", [])
             if self.username not in accounts:
+                # Ensure 'accounts' is a list, even if it was stored as a string
+                if not isinstance(accounts, list):
+                    self.logger.warning("Correcting malformed 'INSTAGRAM_ACCOUNTS' in credentials.")
+                    accounts = [accounts] if accounts else []
                 accounts.append(self.username)
                 self.credential_manager.set("INSTAGRAM_ACCOUNTS", accounts)
             if not self.credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT"):

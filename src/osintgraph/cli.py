@@ -401,7 +401,7 @@ def main():
         
         setup_root_logger(args.debug)
         agent = OSINTGraphAgent(debug=args.debug)
-        asyncio.run(agent.start_agent())
+        asyncio.run(agent.run())
 
     elif args.command == "migrate":
         logger.info("Starting resume hash migration process...")

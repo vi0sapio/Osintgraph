@@ -347,7 +347,9 @@ class OSINTGraphAgent:
                     name = msg.get("name", "tool") if isinstance(msg, dict) else getattr(msg, "name", "tool")
                     formatted.append(f"**[TOOL OUTPUT - {name}]**\n```\n{content.strip()}\n```")
                 elif role == "ai":
-                    formatted.append(f"[THOUGHT]:\n{content}")
+                    # Ensure content is a string before appending
+                    thought_content = str(content) if not isinstance(content, str) else content
+                    formatted.append(f"[THOUGHT]:\n{thought_content}")
 
             summary_prompt = RESPONSE_PROMPT.format(
                 schema_description=self.schema_description,
