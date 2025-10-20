@@ -129,6 +129,8 @@ def main():
                     Specify which of your Instagram accounts to use for this action.
                 {HEADER_COLOR}--skip-accounts [USERNAMES]{RESET}
                     A list of usernames to skip during exploration.
+                {HEADER_COLOR}--reverse-explore{RESET}
+                    Explore users from the smallest follower base to the largest, instead of the default largest to smallest.
             Example:
                 {HEADER_COLOR}osintgraph explore "target_user" --max 10 --limit follower=1000 followee=500 --rate-limit 1000{RESET}
 
@@ -189,6 +191,7 @@ def main():
     explore_parser.add_argument("--force", nargs="+", choices=["all", "follower", "followee", "post", "post-analysis", "account-analysis"], help="Force re-fetch or re-analyze for chosen sections. Use 'all' to redo all.")
     explore_parser.add_argument("--account", type=str, help="Specify which Instagram account to use for scraping.")
     explore_parser.add_argument("--skip-accounts", nargs="+", help="A list of usernames to skip during exploration.")
+    explore_parser.add_argument("--reverse-explore", action="store_true", help="Explore users from smallest follower base to largest.")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Launch Osintgraph AI Agent (RAG-powered). Supports keyword & semantic search, simple analysis, and template-assisted complex investigations.")
@@ -395,7 +398,7 @@ def main():
         if args.command == "discover":
             print()
             logger.info(f"Discovering: {args.username}")
-            manager.discover(target_user=args.username, account_username=args.account)
+            manager.discover(target_user=args.username)
 
         elif args.command == "explore":
             print()

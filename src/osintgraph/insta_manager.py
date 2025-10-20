@@ -202,7 +202,7 @@ class InstagramManager:
 
 
     ## Uncovering the network of target user  
-    def explore(self, target_user: str, max_people: int = 5, account_username: str = None):
+    def explore(self, target_user: str, max_people: int = 5, reverse: bool = False):
         result = self.neo4j_manager.execute_read(
             self.neo4j_manager.get_person_by_username, username=target_user
         )
@@ -211,10 +211,14 @@ class InstagramManager:
             return
 
         # Fetch famous users once
-        famous_users = self._famous(target=target_user)
+        famous_users = self._famous(target=target_user, reverse=reverse)
         if not famous_users:
             self.logger.warning("No famous users found.")
             return
+        
+        if reverse:
+            self.logger.info("Exploring from smallest follower base to largest.")
+
 
         # Convert to an iterator to pull users one by one
         user_iterator = iter(famous_users)
@@ -239,7 +243,7 @@ class InstagramManager:
             self.logger.info(f"Discovering: {username}")
 
             try:
-                self.discover(username, account_username=account_username)
+                self.discover(username)
             except Exception as e:
                 self.logger.error(f"Error discovering {username}: {e}")
                 continue
@@ -603,12 +607,12 @@ class InstagramManager:
             self.logger.error(f"⚠  Post analysis Failed. Unknown error  {e}")
 
     ## Finds the most popular user based on a given criterion (e.g., followers, date).
-    def _famous(self, target: str, limit: int = 100):
+    def _famous(self, target: str, limit: int = 100, reverse: bool = False):
         """
         Find a popular user (by followers count) from the followees of `target`
         who still requires further discovery (incomplete profile or graph data).
         """
-        self.logger.info("Finding top followees for discovery...")
+        self.logger.info("Finding followees for discovery...")
 
         # Try users with incomplete profile
         result = self.neo4j_manager.execute_read(
@@ -625,6 +629,10 @@ class InstagramManager:
         if not result:
             # self.logger.debug("No famous user found.")
             return []
+
+        # Reverse the list if requested
+        if reverse:
+            result.reverse()
 
         # Return at most `limit` results
         return [record.data() for record in result][:limit]
