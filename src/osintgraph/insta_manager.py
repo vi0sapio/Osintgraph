@@ -45,6 +45,7 @@ class Insta_Config:
     skip_posts: bool = False
     skip_posts_analysis: bool = False
     skip_account_analysis: bool = False
+    skip_account: str = "nature__click_pic"
     max_request: int = 200
     debug_mode: bool = False
     force: List[str] = field(default_factory=list)
@@ -224,6 +225,11 @@ class InstagramManager:
                 continue
 
             self.logger.info(f"Discovering: {username}")
+            if username == self.config.skip_account:
+                self.logger.info(f"⤷  Skipped {username} as per configuration.")
+                seen.add(username)
+                continue
+                
             try:
                 self.discover(username, account_username=account_username)
                 # self.logger.info(f"Successfully discovered {username}.")
