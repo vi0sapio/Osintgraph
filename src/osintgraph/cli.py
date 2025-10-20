@@ -403,7 +403,6 @@ def main():
         elif args.command == "explore":
             print()
             logger.info(f"Exploring network of user: {args.username} (Max people: {args.max})")
-            manager.explore(target_user=args.username, max_people=args.max, account_username=args.account)
             manager.explore(target_user=args.username, max_people=args.max, reverse=args.reverse_explore)
 
         
