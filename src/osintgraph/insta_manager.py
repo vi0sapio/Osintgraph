@@ -101,7 +101,7 @@ class InstagramManager:
     # Public Features 
 
     ## Collecting target user's profile and connection data
-    def discover(self, target_user: str, account_username: str = None):
+    def discover(self, target_user: str):
         data_types = ['followers', 'followees', 'posts', 'posts_analysis', 'account_analysis']
         self._rate_limit()
         
@@ -112,7 +112,7 @@ class InstagramManager:
         except TooManyRequestsException:
             self.logger.warning(f"Account '{self.username}' is rate-limited.")
             if self._switch_account():
-                self.discover(target_user, account_username) # Retry with new account
+                self.discover(target_user) # Retry with new account
             else:
                 self.logger.error("All accounts are rate-limited. Please wait and try again later.")
             return
