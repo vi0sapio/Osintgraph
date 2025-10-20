@@ -238,6 +238,10 @@ def main():
                 add_new = input("                       > (y/n): ").lower().strip()
                 if add_new == 'y':
                     accounts = credential_manager.get("INSTAGRAM_ACCOUNTS", [])
+                    # Ensure 'accounts' is a list, even if it was stored as a string
+                    if not isinstance(accounts, list):
+                        logger.warning("Correcting malformed 'INSTAGRAM_ACCOUNTS' in credentials.")
+                        accounts = [accounts] if accounts else []
                     default_account = credential_manager.get("DEFAULT_INSTAGRAM_ACCOUNT")
                     new_username = InstagramManager(config=Insta_Config(auto_login=False)).choose_login_method()
                     if new_username and new_username not in accounts:

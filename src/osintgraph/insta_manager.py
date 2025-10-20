@@ -435,7 +435,10 @@ class InstagramManager:
                 )
 
                 batch_data = []
-                for person in tqdm(iterator, desc=f"Fetching {data_type}", unit="people", total=total_items, ncols=70):
+
+                initial_count = getattr(iterator.node_iterator, '_total_index', 0) if iterator.is_resumed else 0
+
+                for person in tqdm(iterator, desc=f"Fetching {data_type}", unit="people", total=total_items, initial=initial_count, ncols=70):
                     
                     if counter >= max_count:
                         resume_hash_created =True
