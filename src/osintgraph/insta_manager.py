@@ -478,19 +478,18 @@ class InstagramManager:
 
             elif data_type == "posts":
                 method = options[data_type]['method']
-                iterator, is_resume = self.maybe_resume_iterator(method, data_type, profile.username)
-                
-                if is_resume:
-                    self.logger.info(f"♻  Resuming unfinished {data_type.capitalize()} fetch...")
-                else:
-                    self.logger.info(f"⧗  Starting to fetch {data_type.capitalize()}...")
+                base_iterator = method()
 
-                result = {
-                    data_type: {
-                        "data": None,
-                        "batch_mode": is_resume
-                    }
-                }
+                # Use our new resumable iterator for posts as well
+                iterator = ResumableNodeIterator(
+                    node_iterator=base_iterator,
+                    neo4j_manager=self.neo4j_manager,
+                    profile_id=profile.userid,
+                    scraper_username=self.username,
+                    data_type=data_type,
+                    total_count=total_items
+                )
+
                 for post in tqdm(iterator, desc=f"Fetching {data_type}", unit="post", total=total_items, ncols=70):
                     
                     if counter >= max_count:
@@ -498,7 +497,7 @@ class InstagramManager:
                         resume_hash = {
                             data_type: json.dumps(instaloader.get_json_structure(iterator.freeze()))
                         }
-                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash)
+                        self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, resume_hash) # Fallback save
                         resume_hash_created =True
                         break
                     
@@ -523,10 +522,8 @@ class InstagramManager:
                     for liker in post.get_likes():
                         post.likers_list.append({'liked_post_id': int(post.mediaid), **extract_user_metadata(liker)})
                         
-                    
-                    result[data_type]["data"] = extract_post_data(post)
-
-                    self.neo4j_manager.execute_write(self.neo4j_manager.manage_post_relationships, result[data_type]["data"])
+                    post_data = extract_post_data(post)
+                    self.neo4j_manager.execute_write(self.neo4j_manager.manage_post_relationships, post_data)
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{"posts_analysis": False})
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{"account_analysis": False})
 
@@ -538,7 +535,6 @@ class InstagramManager:
                     self.logger.info(f"✓  {data_type.capitalize()} fetched (partially)")
                     self.logger.info(f"✎  Saved resume point for {data_type.capitalize()}")
                 else:
-                    self.neo4j_manager.execute_write(self.neo4j_manager.save_resume_hash, profile.userid, self.username, {data_type: ""})
                     self.neo4j_manager.execute_write(self.neo4j_manager.set_completion_flags, profile.username, **{data_type: True} )
                     self.logger.info(f"✓  {data_type.capitalize()} fetched")
                 

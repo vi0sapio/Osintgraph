@@ -188,8 +188,12 @@ def run_template(template_name: str, args: dict) -> str:
     # Build full prompt for debug
     full_prompt = f"[SYSTEM]\n{template['system_prompt'].strip()}\n\n[USER]\n{rendered_user_prompt.strip()}"
     ui.status_text.set(f"[grey70]Executing Template {template_name}...[/grey70]")
-    result = template_llm.analyze_text(user_prompt=rendered_user_prompt, system_prompt=template['system_prompt'], json_output=False)
-    ui.status_text.set(f"[grey70]Results from {template_name}:[/grey70]")
+    try:
+        result = template_llm.analyze_text(user_prompt=rendered_user_prompt, system_prompt=template['system_prompt'], json_output=False)
+        ui.status_text.set(f"[grey70]Results from {template_name}:[/grey70]")
+    except Exception as e:
+        logger.error(f"Error running template '{template_name}': {e}")
+        return f"An error occurred while running the template '{template_name}': {e}"
 
     detect_and_print(result)
 

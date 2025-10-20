@@ -30,7 +30,10 @@ class ResumableNodeIterator:
                 self.logger.info(f"♻  Found shared resume point. Resuming {self.data_type} fetch...")
                 # This is the key part: we are modifying the iterator's internal state
                 # to start from the shared cursor.
-                self.node_iterator.page_info = {'end_cursor': resume_data["end_cursor"], 'has_next_page': True}
+                # We must set it this way as the attribute may not exist yet.
+                setattr(self.node_iterator, 'page_info', {
+                    'end_cursor': resume_data["end_cursor"], 'has_next_page': True
+                })
                 self.node_iterator.nodes_per_chunk = 50 # Standard page size
                 self.node_iterator.total_index = resume_data.get("count", 0)
                 self.is_resumed = True
@@ -50,12 +53,13 @@ class ResumableNodeIterator:
         # We can hook into this to save our state.
 
         # Store the cursor *before* getting the next item, in case it fails.
-        current_cursor = self.node_iterator.page_info.get('end_cursor')
-        current_count = self.node_iterator.total_index
+        page_info = getattr(self.node_iterator, 'page_info', {})
+        current_cursor = page_info.get('end_cursor')
+        current_count = getattr(self.node_iterator, 'total_index', 0)
 
         try:
             item = next(self.node_iterator)
-            new_cursor = self.node_iterator.page_info.get('end_cursor')
+            new_cursor = getattr(self.node_iterator, 'page_info', {}).get('end_cursor')
 
             # If the cursor has changed, it means a new page was fetched.
             if new_cursor != current_cursor:

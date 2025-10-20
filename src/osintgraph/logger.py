@@ -79,6 +79,7 @@ def disable_library_loggers():
         "neo4j.pool",
         "neo4j.notifications",
         "neo4j",
+        "instaloader",
         "concurrent.futures",
         "concurrent",
         "asyncio",
@@ -116,4 +117,3 @@ def disable_library_loggers():
             logger.removeHandler(handler)
 
 # Call this function during your logger setup
-
